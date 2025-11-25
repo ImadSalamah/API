@@ -1,0 +1,85 @@
+name: dcs
+description: "Dental clinic management system for Arab American University Jenin"
+publish_to: 'AAUP'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State & Utils
+  provider: ^6.1.4
+  intl: ^0.20.2
+  uuid: ^4.5.1
+  shared_preferences: ^2.3.2
+  http: ^1.2.2
+
+  # Connectivity
+  connectivity_plus: ^7.0.0
+
+  # UI & Icons
+  cupertino_icons: ^1.0.8
+  font_awesome_flutter: ^10.8.0
+  showcaseview: ^4.0.1
+  photo_view: ^0.14.0
+
+  # Media & Camera
+  image_picker: ^1.1.2
+  image: ^4.5.4
+  flutter_image_compress: ^2.0.0
+  cached_network_image: ^3.3.1
+  camera: ^0.11.1
+
+  # Permissions
+  permission_handler: ^12.0.0+1
+
+  # XML & SVG & Drawing
+  xml: ^6.2.0
+  path_drawing: ^1.0.1
+
+
+
+  # Notifications
+  flutter_local_notifications: ^17.2.3
+
+  # PDF
+  pdf: ^3.11.3
+  printing: ^5.14.2
+
+  # Web utilities
+  universal_html: ^2.2.3
+
+  # URL
+  url_launcher: ^6.2.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/bglogo.png"
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+  assets:
+    - assets/aauplogo.png
+    - assets/logo1.png
+    - lib/assets/backgrownd.png
+    - assets/Cairo-Regular.ttf
+
+  fonts:
+    - family: Cairo
+      fonts:
+        - asset: assets/Cairo-Regular.ttf

@@ -1,0 +1,30 @@
+{
+  "project_info": {
+ "project_number": "116279530211",
+ "firebase_url": "https://dcms-aaup-6e1e4-default-rtdb.firebaseio.com",
+ "project_id": "dcms-aaup-6e1e4",
+ "storage_bucket": "dcms-aaup-6e1e4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+ "mobilesdk_app_id": "1:116279530211:android:912bb24736a3fa4ce3abd6",
+        "android_client_info": {
+ "package_name": "example.x"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+ "current_key": "AIzaSyCygP68vBdMibVfpaXBCPqvgg32yN8Wp1M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+ "configuration_version": "1"
+}
