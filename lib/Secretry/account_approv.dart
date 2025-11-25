@@ -124,6 +124,12 @@ class AccountApprovalPageState extends State<AccountApprovalPage> {
       'en': 'Unable to connect, please try again'
     },
     'added_by': {'ar': 'أضيف بواسطة', 'en': 'Added by'},
+    'secretary': {'ar': 'سكرتير', 'en': 'Secretary'},
+    'patient_files': {'ar': 'ملفات المرضى', 'en': 'Patient Files'},
+    'add_patient': {'ar': 'إضافة مريض', 'en': 'Add Patient'},
+    'approve_accounts': {'ar': 'الموافقة على الحسابات', 'en': 'Approve Accounts'},
+    'waiting_list': {'ar': 'قائمة الانتظار', 'en': 'Waiting List'},
+    'booking_schedule': {'ar': 'جدول الحجوزات', 'en': 'Booking Schedule'},
   };
 
   @override

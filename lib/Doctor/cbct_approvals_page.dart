@@ -19,6 +19,7 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
   bool _isLoading = true;
   bool _hasError = false;
   String _deanName = '';
+  final Set<String> _approvingRequestIds = {};
 
   @override
   void initState() {
@@ -46,15 +47,18 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
     });
 
     try {
-      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/xray_requests'));
+      final response =
+          await http.get(Uri.parse('${ApiConfig.baseUrl}/xray_requests'));
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         final List<Map<String, dynamic>> requests = data
-            .where((e) => (e['XRAY_TYPE'] ?? '').toString().toLowerCase() == 'cbct')
+            .where((e) =>
+                (e['XRAY_TYPE'] ?? '').toString().toLowerCase() == 'cbct')
             .map((e) {
           final mapped = Map<String, dynamic>.from(e);
           return {
-            'request_id': mapped['REQUEST_ID'] ?? mapped['id'] ?? mapped['requestId'],
+            'request_id':
+                mapped['REQUEST_ID'] ?? mapped['id'] ?? mapped['requestId'],
             'patient_name': mapped['PATIENT_NAME'] ?? mapped['patientName'],
             'patient_id': mapped['PATIENT_ID'] ?? mapped['patientId'],
             'student_name': mapped['STUDENT_NAME'],
@@ -86,24 +90,34 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
   }
 
   Future<void> _approveRequest(Map<String, dynamic> request) async {
-    final requestId = request['request_id'];
-    if (requestId == null) return;
+    final rawRequestId = request['request_id'];
+    final requestId = rawRequestId?.toString();
+    if (requestId == null || requestId.isEmpty) return;
+    if (_approvingRequestIds.contains(requestId)) return;
 
+    setState(() => _approvingRequestIds.add(requestId));
     try {
+      final payload = <String, dynamic>{
+        'status': 'pending',
+        'requiresDeanApproval': false,
+        'approvedAt': DateTime.now().toIso8601String(),
+      };
+      if (_deanName.isNotEmpty) {
+        payload['approvedByDean'] = _deanName;
+      }
+
       final response = await http.put(
         Uri.parse('${ApiConfig.baseUrl}/xray_requests/$requestId/status'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'status': 'pending',
-          'approvedByDean': _deanName,
-          'approvedAt': DateTime.now().toIso8601String(),
-        }),
+        body: jsonEncode(payload),
       );
 
       if (response.statusCode == 200) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isArabic ? 'تمت الموافقة على الطلب' : 'Request approved')),
+          SnackBar(
+              content: Text(
+                  _isArabic ? 'تمت الموافقة على الطلب' : 'Request approved')),
         );
         _loadCbctRequests();
       } else {
@@ -111,26 +125,38 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
       }
     } catch (_) {
       _showErrorSnackBar();
+    } finally {
+      if (mounted) {
+        setState(() => _approvingRequestIds.remove(requestId));
+      } else {
+        _approvingRequestIds.remove(requestId);
+      }
     }
   }
 
   void _showErrorSnackBar() {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_isArabic ? 'تعذر تحديث الطلب' : 'Could not update request')),
+      SnackBar(
+          content: Text(
+              _isArabic ? 'تعذر تحديث الطلب' : 'Could not update request')),
     );
   }
 
   bool get _isArabic {
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final languageProvider =
+        Provider.of<LanguageProvider>(context, listen: false);
     return languageProvider.currentLocale.languageCode == 'ar';
   }
 
   bool _isAwaitingDeanStatus(String status) {
-    final normalized = status
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z]'), ''); // remove underscores/spaces/anything non-letter
-    return normalized.startsWith('awaitingdean');
+    final normalized = status.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+    final containsDean = normalized.contains('dean');
+    final containsWaitingHint = normalized.contains('awaiting') ||
+        normalized.contains('waiting') ||
+        normalized.contains('approval') ||
+        normalized.contains('pending');
+    return containsDean && containsWaitingHint;
   }
 
   @override
@@ -158,17 +184,21 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.red, size: 40),
+                        const Icon(Icons.error_outline,
+                            color: Colors.red, size: 40),
                         const SizedBox(height: 12),
                         Text(
-                          isArabic ? 'حدث خطأ أثناء تحميل الطلبات' : 'Failed to load requests',
+                          isArabic
+                              ? 'حدث خطأ أثناء تحميل الطلبات'
+                              : 'Failed to load requests',
                           style: const TextStyle(color: Colors.red),
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
                           onPressed: _loadCbctRequests,
                           icon: const Icon(Icons.refresh),
-                          label: Text(isArabic ? 'إعادة المحاولة' : 'Try again'),
+                          label:
+                              Text(isArabic ? 'إعادة المحاولة' : 'Try again'),
                         ),
                       ],
                     ),
@@ -176,14 +206,17 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
                 : cbctRequests.isEmpty
                     ? Center(
                         child: Text(
-                          isArabic ? 'لا يوجد طلبات CBCT حالياً' : 'No CBCT requests for approval',
+                          isArabic
+                              ? 'لا يوجد طلبات CBCT حالياً'
+                              : 'No CBCT requests for approval',
                           style: TextStyle(color: Colors.grey.shade700),
                         ),
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.all(12),
                         itemCount: cbctRequests.length,
-                        itemBuilder: (context, index) => _buildRequestCard(cbctRequests[index], isArabic),
+                        itemBuilder: (context, index) =>
+                            _buildRequestCard(cbctRequests[index], isArabic),
                       ),
       ),
     );
@@ -192,6 +225,10 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
   Widget _buildRequestCard(Map<String, dynamic> request, bool isArabic) {
     final status = (request['status'] ?? 'pending').toString().toLowerCase();
     final awaitingDean = _isAwaitingDeanStatus(status);
+    final requestId = request['request_id']?.toString();
+    final isProcessing =
+        requestId != null && _approvingRequestIds.contains(requestId);
+    final canApprove = awaitingDean && !isProcessing;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -215,13 +252,17 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
                 Expanded(
                   child: Text(
                     request['patient_name']?.toString() ?? '—',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: awaitingDean ? Colors.red.shade100 : Colors.green.shade100,
+                    color: awaitingDean
+                        ? Colors.red.shade100
+                        : Colors.green.shade100,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -229,7 +270,9 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
                         ? (isArabic ? 'بانتظار الموافقة' : 'Waiting approval')
                         : (isArabic ? 'جاهز للتصوير' : 'Ready for imaging'),
                     style: TextStyle(
-                      color: awaitingDean ? Colors.red.shade800 : Colors.green.shade800,
+                      color: awaitingDean
+                          ? Colors.red.shade800
+                          : Colors.green.shade800,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -238,7 +281,8 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
               ],
             ),
             const SizedBox(height: 8),
-            if (request['student_name'] != null && request['student_name'].toString().isNotEmpty)
+            if (request['student_name'] != null &&
+                request['student_name'].toString().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Row(
@@ -254,12 +298,14 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
                   ],
                 ),
               ),
-            if (request['clinic'] != null && request['clinic'].toString().isNotEmpty)
+            if (request['clinic'] != null &&
+                request['clinic'].toString().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Row(
                   children: [
-                    const Icon(Icons.local_hospital, size: 16, color: Colors.grey),
+                    const Icon(Icons.local_hospital,
+                        size: 16, color: Colors.grey),
                     const SizedBox(width: 6),
                     Text(
                       '${isArabic ? 'العيادة:' : 'Clinic:'} ${request['clinic']}',
@@ -268,12 +314,14 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
                   ],
                 ),
               ),
-            if (request['cbct_jaw'] != null && request['cbct_jaw'].toString().isNotEmpty)
+            if (request['cbct_jaw'] != null &&
+                request['cbct_jaw'].toString().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Row(
                   children: [
-                    const Icon(Icons.architecture, size: 16, color: Colors.grey),
+                    const Icon(Icons.architecture,
+                        size: 16, color: Colors.grey),
                     const SizedBox(width: 6),
                     Text(
                       request['cbct_jaw'] == 'upper'
@@ -297,12 +345,17 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
-                  onPressed: awaitingDean ? () => _approveRequest(request) : null,
+                  onPressed: canApprove ? () => _approveRequest(request) : null,
                   icon: const Icon(Icons.verified),
-                  label: Text(isArabic ? 'موافقة' : 'Approve'),
+                  label: Text(isProcessing
+                      ? (isArabic ? 'جاري المعالجة' : 'Processing...')
+                      : (isArabic ? 'موافقة' : 'Approve')),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: awaitingDean ? const Color(0xFF2A7A94) : Colors.grey.shade300,
-                    foregroundColor: awaitingDean ? Colors.white : Colors.grey.shade700,
+                    backgroundColor: awaitingDean
+                        ? const Color(0xFF2A7A94)
+                        : Colors.grey.shade300,
+                    foregroundColor:
+                        awaitingDean ? Colors.white : Colors.grey.shade700,
                   ),
                 ),
               ],

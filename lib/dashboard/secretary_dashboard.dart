@@ -148,6 +148,7 @@ class _SecretaryDashboardState extends State<_SecretaryDashboardContent> {
       'en': 'Approve Accounts'
     },
     'waiting_list': {'ar': 'قائمة الانتظار', 'en': 'Waiting List'},
+    'booking_schedule': {'ar': 'جدول الحجوزات', 'en': 'Booking Schedule'},
     'secretary': {'ar': 'سكرتير', 'en': 'Secretary'},
     'home': {'ar': 'الرئيسية', 'en': 'Home'},
     'settings': {'ar': 'الإعدادات', 'en': 'Settings'},

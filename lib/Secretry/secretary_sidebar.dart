@@ -110,7 +110,7 @@ class SecretarySidebar extends StatelessWidget {
             _buildSidebarItem(
               context,
               icon: Icons.home,
-              label: Localizations.localeOf(context).languageCode == 'ar' ? 'الرئيسية' : 'Home',
+              label: translate(context, 'home'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushAndRemoveUntil(
@@ -123,7 +123,7 @@ class SecretarySidebar extends StatelessWidget {
             _buildSidebarItem(
               context,
               icon: Icons.folder,
-              label: Localizations.localeOf(context).languageCode == 'ar' ? 'ملفات المرضى' : 'Patient Files',
+              label: translate(context, 'patient_files'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -135,7 +135,7 @@ class SecretarySidebar extends StatelessWidget {
             _buildSidebarItem(
               context,
               icon: Icons.person_add,
-              label: Localizations.localeOf(context).languageCode == 'ar' ? 'إضافة مريض' : 'Add Patient',
+              label: translate(context, 'add_patient'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -147,7 +147,7 @@ class SecretarySidebar extends StatelessWidget {
             _buildSidebarItem(
               context,
               icon: Icons.verified_user,
-              label: Localizations.localeOf(context).languageCode == 'ar' ? 'الموافقة على الحسابات' : 'Approve Accounts',
+              label: translate(context, 'approve_accounts'),
               badgeCount: pendingAccountsCount,
               onTap: () {
                 Navigator.pop(context);
@@ -160,7 +160,7 @@ class SecretarySidebar extends StatelessWidget {
             _buildSidebarItem(
               context,
               icon: Icons.list_alt,
-              label: Localizations.localeOf(context).languageCode == 'ar' ? 'قائمة الانتظار' : 'Waiting List',
+              label: translate(context, 'waiting_list'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -175,7 +175,7 @@ class SecretarySidebar extends StatelessWidget {
             _buildSidebarItem(
               context,
               icon: Icons.calendar_today,
-              label: Localizations.localeOf(context).languageCode == 'ar' ? 'جدول الحجوزات' : 'Booking Schedule',
+              label: translate(context, 'booking_schedule'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(

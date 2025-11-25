@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:provider/provider.dart';
 import '../services/oracle_storage.dart';
 import '../../providers/language_provider.dart';
+import '../providers/secretary_provider.dart';
+import 'secretary_sidebar.dart';
 import 'package:flutter/services.dart';
 import 'package:dcs/config/api_config.dart';
 import '../utils/friendly_error.dart';
@@ -60,6 +62,7 @@ class AddPatientPageState extends State<AddPatientPage> {
     'id_photo_title': {'ar': 'صورة الهوية', 'en': 'ID Photo'},
     'agreement_photo_title': {'ar': 'صورة الإقرار', 'en': 'Agreement Photo'},
     'personal_info': {'ar': 'المعلومات الشخصية', 'en': 'Personal Information'},
+    'secretary': {'ar': 'سكرتير', 'en': 'Secretary'},
     'contact_info': {'ar': 'معلومات التواصل', 'en': 'Contact Information'},
     'required_field': {'ar': '*', 'en': '*'},
     'select_date': {'ar': 'اختر التاريخ', 'en': 'Select date'},
@@ -86,6 +89,14 @@ class AddPatientPageState extends State<AddPatientPage> {
     'validation_agreement_image': {
       'ar': 'صورة الإقرار مطلوبة',
       'en': 'Agreement image is required'
+    },
+    'validation_id_exists': {
+      'ar': 'رقم الهوية مسجل مسبقاً في النظام',
+      'en': 'ID number already exists in the system'
+    },
+    'validation_id_pending': {
+      'ar': 'رقم الهوية موجود في قائمة الانتظار',
+      'en': 'ID number is already in the waiting list'
     },
     'add_success': {
       'ar': 'تمت إضافة المريض بنجاح',
@@ -229,6 +240,39 @@ class AddPatientPageState extends State<AddPatientPage> {
     }
   }
 
+  Future<String?> _checkIdNumberAvailability(String idNumber, BuildContext context) async {
+    try {
+      final checkPatientsUrl = Uri.parse('${ApiConfig.baseUrl}/patients/check-id/$idNumber');
+      final checkPatientsResponse = await http.get(checkPatientsUrl);
+      if (checkPatientsResponse.statusCode == 200) {
+        final result = jsonDecode(checkPatientsResponse.body);
+        if (result['exists'] == true) {
+          // ignore: use_build_context_synchronously
+          return _translate('validation_id_exists', context);
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to verify patient ID against patients table: $e');
+    }
+
+    try {
+      final pendingCheckUrl = Uri.parse('${ApiConfig.baseUrl}/pendingUsers/check-id');
+      final pendingCheckResponse = await http.post(
+        pendingCheckUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'idNumber': idNumber}),
+      );
+      if (pendingCheckResponse.statusCode == 409) {
+        // ignore: use_build_context_synchronously
+        return _translate('validation_id_pending', context);
+      }
+    } catch (e) {
+      debugPrint('Failed to verify patient ID against waiting list: $e');
+    }
+
+    return null;
+  }
+
   Future<void> _addPatient() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -257,25 +301,11 @@ class AddPatientPageState extends State<AddPatientPage> {
     }
 
     final idNumber = _idNumberController.text.trim();
-    
-    // التحقق من وجود رقم الهوية
-    bool idExists = false;
-    try {
-      final checkResponse = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/patients/check-id/$idNumber')
-      );
-      if (checkResponse.statusCode == 200) {
-        final result = jsonDecode(checkResponse.body);
-        idExists = result['exists'] == true;
-      }
-    } catch (e) {
-      // تجاهل الخطأ والمتابعة
-    }
-    
-    if (idExists) {
+    final idVerificationMessage = await _checkIdNumberAvailability(idNumber, context);
+    if (idVerificationMessage != null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('رقم الهوية مسجل مسبقاً')),
+        SnackBar(content: Text(idVerificationMessage)),
       );
       return;
     }
@@ -466,28 +496,49 @@ class AddPatientPageState extends State<AddPatientPage> {
   Widget build(BuildContext context) {
     final languageProvider = Provider.of<LanguageProvider>(context);
 
-    return Directionality(
-      textDirection:
-          languageProvider.isEnglish ? TextDirection.ltr : TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          title: Text(_translate('add_patient_title', context)),
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.language),
-              onPressed: () {
-                languageProvider.toggleLanguage();
-              },
+    final secretaryProvider = Provider.of<SecretaryProvider>(context);
+
+    return Localizations.override(
+      context: context,
+      locale: languageProvider.currentLocale,
+      child: Directionality(
+        textDirection:
+            languageProvider.isEnglish ? TextDirection.ltr : TextDirection.rtl,
+        child: Scaffold(
+          backgroundColor: Colors.white,
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            leading: Builder(
+              builder: (context) => IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
             ),
-          ],
-        ),
-        body: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 700;
-            final double horizontalPadding = isWide ? constraints.maxWidth * 0.15 : 16;
+            title: Text(_translate('add_patient_title', context)),
+            backgroundColor: primaryColor,
+            foregroundColor: Colors.white,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.language),
+                onPressed: () {
+                  languageProvider.toggleLanguage();
+                },
+              ),
+            ],
+          ),
+          drawer: SecretarySidebar(
+            primaryColor: primaryColor,
+            accentColor: accentColor,
+            userName: secretaryProvider.fullName,
+            userImageUrl: secretaryProvider.imageBase64,
+            parentContext: context,
+            translate: (ctx, key) => _translate(key, ctx),
+            userRole: 'secretary',
+          ),
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 700;
+              final double horizontalPadding = isWide ? constraints.maxWidth * 0.15 : 16;
             
             return SingleChildScrollView(
               padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 24),
@@ -1085,7 +1136,7 @@ class AddPatientPageState extends State<AddPatientPage> {
             );
           },
         ),
-      ),
+      ),),
     );
   }
 
