@@ -9,8 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/language_provider.dart';
 import '../../providers/secretary_provider.dart';
 import '../Secretry/secretary_sidebar.dart';
+import '../Admin/admin_sidebar.dart';
 import 'package:dcs/config/api_config.dart';
 import 'package:dcs/utils/name_utils.dart';
+import 'edit_patient_page.dart';
 
 class PatientFilesPage extends StatefulWidget {
   final String userRole;
@@ -23,11 +25,14 @@ class PatientFilesPage extends StatefulWidget {
 class _PatientFilesPageState extends State<PatientFilesPage> {
   final Color primaryColor = const Color(0xFF2A7A94);
   final Color accentColor = const Color(0xFF4AB8D8);
+  static const int _displayLimit = 10;
 
   List<Map<String, dynamic>> allPatients = [];
   List<Map<String, dynamic>> filteredPatients = [];
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
+  String _adminName = '';
+  String _adminImageUrl = '';
 
   // بيانات تجريبية للتأكد من أن الواجهة تعمل
   final List<Map<String, dynamic>> _mockPatients = [];
@@ -47,6 +52,7 @@ class _PatientFilesPageState extends State<PatientFilesPage> {
     'id_image': {'ar': 'صورة الهوية', 'en': 'ID Image'},
     'iqrar_image': {'ar': 'صورة الإقرار', 'en': 'IQRAR Image'},
     'patient_details': {'ar': 'تفاصيل المريض', 'en': 'Patient Details'},
+    'edit_patient': {'ar': 'تعديل بيانات المريض', 'en': 'Edit Patient'},
     'add_to_waiting_list': {'ar': 'إضافة إلى قائمة الانتظار', 'en': 'Add to Waiting List'},
     'select_date': {'ar': 'اختر التاريخ', 'en': 'Select Date'},
     'add_notes': {'ar': 'إضافة ملاحظات', 'en': 'Add Notes'},
@@ -70,6 +76,8 @@ class _PatientFilesPageState extends State<PatientFilesPage> {
     _searchController.addListener(_filterPatients);
     if (widget.userRole == 'secretary') {
       _loadSecretaryDataToProvider();
+    } else if (widget.userRole == 'admin') {
+      _loadAdminData();
     }
   }
 
@@ -514,6 +522,34 @@ class _PatientFilesPageState extends State<PatientFilesPage> {
     }
   }
 
+  Future<void> _loadAdminData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      Map<String, dynamic> userData = {};
+      final cachedUserData = prefs.getString('userData');
+      if (cachedUserData != null && cachedUserData.isNotEmpty) {
+        final decoded = json.decode(cachedUserData);
+        if (decoded is Map<String, dynamic>) {
+          userData = decoded;
+        }
+      }
+
+      final extractedName = extractFullName(userData);
+      final fullName = extractedName.isNotEmpty
+          ? extractedName
+          : prefs.getString('FULL_NAME') ??
+              _translate(context, 'admin');
+
+      setState(() {
+        _adminName = fullName;
+        _adminImageUrl =
+            (userData['IMAGE'] ?? prefs.getString('IMAGE') ?? '').toString();
+      });
+    } catch (e) {
+      debugPrint('Failed to load admin data: $e');
+    }
+  }
+
   Widget _buildSidebar(BuildContext context) {
     if (widget.userRole == 'secretary') {
       final secretaryProvider = Provider.of<SecretaryProvider>(context);
@@ -526,11 +562,21 @@ class _PatientFilesPageState extends State<PatientFilesPage> {
         userName: secretaryProvider.fullName,
         userImageUrl: secretaryProvider.imageBase64,
       );
+    } else if (widget.userRole == 'admin') {
+      return AdminSidebar(
+        primaryColor: primaryColor,
+        accentColor: accentColor,
+        userName: _adminName.isNotEmpty ? _adminName : null,
+        userImageUrl: _adminImageUrl.isNotEmpty ? _adminImageUrl : null,
+        parentContext: context,
+        translate: _translate,
+        userRole: 'admin',
+      );
     }
     return const SizedBox.shrink();
   }
 
-  void _handlePopupMenuSelection(String value, Map<String, dynamic> patient) {
+  Future<void> _handlePopupMenuSelection(String value, Map<String, dynamic> patient) async {
     switch (value) {
       case 'add_to_waiting':
         _addToWaitingList(patient);
@@ -543,6 +589,17 @@ class _PatientFilesPageState extends State<PatientFilesPage> {
         break;
       case 'view_iqrar_image':
         _showIqrarImage(patient['iqrar'] ?? '');
+        break;
+      case 'edit_patient':
+        final updated = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EditPatientPage(patient: patient),
+          ),
+        );
+        if (updated == true) {
+          _loadPatientsData();
+        }
         break;
     }
   }
@@ -645,7 +702,9 @@ class _PatientFilesPageState extends State<PatientFilesPage> {
                               ),
                             )
                           : ListView.builder(
-                              itemCount: filteredPatients.length,
+                              itemCount: filteredPatients.length > _displayLimit
+                                  ? _displayLimit
+                                  : filteredPatients.length,
                               itemBuilder: (context, index) {
                                 final patient = filteredPatients[index];
                                 return _buildPatientCard(patient);
@@ -706,6 +765,17 @@ class _PatientFilesPageState extends State<PatientFilesPage> {
                           const Icon(Icons.access_time, size: 20, color: Colors.orange),
                           const SizedBox(width: 8),
                           Text(_translate(context, 'add_to_waiting_list')),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'edit_patient',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.edit, size: 20, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Text(_translate(context, 'edit_patient')),
                         ],
                       ),
                     ),

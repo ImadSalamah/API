@@ -1,8 +1,10 @@
 // ignore_for_file: depend_on_referenced_packages, use_build_context_synchronously, empty_catches, duplicate_ignore
 
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import '../providers/language_provider.dart';
 import '../radiology/radiology_sidebar.dart';
@@ -11,6 +13,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'radiology_report_page.dart';
 import '../utils/name_utils.dart';
 import 'package:dcs/config/api_config.dart';
+import 'package:image_picker/image_picker.dart';
+import '../services/oracle_storage.dart';
 
 class XrayRequestListPage extends StatefulWidget {
   const XrayRequestListPage({super.key});
@@ -23,11 +27,13 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
   List<Map<String, dynamic>> xrayWaitingPatients = [];
   List<Map<String, dynamic>> filteredPatients = [];
   bool _isLoading = true;
+  bool _isUploadingImage = false;
   String userName = '';
   String userImageUrl = '';
+  bool _filtersExpanded = false;
+  final int _serverLimit = 100; // نحدّ من السيرفر لتخفيف الحمل
   
   final TextEditingController _searchController = TextEditingController();
-  String _selectedStatusFilter = 'all';
   String _selectedXrayTypeFilter = 'all';
   String _selectedClinicFilter = 'all';
 
@@ -71,7 +77,9 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
     if (mounted) setState(() => _isLoading = true);
     
     try {
-      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/xray_requests'));
+      final uri = Uri.parse('${ApiConfig.baseUrl}/xray_requests')
+          .replace(queryParameters: {'limit': _serverLimit.toString()});
+      final response = await http.get(uri);
       
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -102,6 +110,9 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
             'clinic': patient['CLINIC'],
             'doctor_uid': patient['DOCTOR_UID'],
             'created_at': patient['CREATED_AT'],
+            'image': patient['IMAGE'] ?? patient['image'],
+            'image_url': patient['IMAGE_URL'] ?? patient['imageUrl'],
+            'cloudinary_url': patient['CLOUDINARY_URL'] ?? patient['cloudinary_url'],
           };
         }).toList();
         
@@ -129,10 +140,6 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
   void _applyFilters() {
     List<Map<String, dynamic>> filtered = xrayWaitingPatients;
 
-    if (_selectedStatusFilter != 'all') {
-      filtered = filtered.where((p) =>
-          (p['status'] ?? '').toString().toLowerCase() == _selectedStatusFilter).toList();
-    }
     if (_selectedXrayTypeFilter != 'all') {
       filtered = filtered.where((p) =>
           (p['xray_type'] ?? '').toString().toLowerCase() == _selectedXrayTypeFilter).toList();
@@ -154,7 +161,6 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
 
   void _resetFilters() {
     setState(() {
-      _selectedStatusFilter = 'all';
       _selectedXrayTypeFilter = 'all';
       _selectedClinicFilter = 'all';
       _searchController.clear();
@@ -162,32 +168,119 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
     });
   }
 
-  Future<void> _markRequestAsCompleted(Map<String, dynamic> patient) async {
-    try {
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/xray_requests/${patient['request_id']}/status'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'status': 'completed',
-          'completedAt': DateTime.now().toIso8601String(),
-          'completedBy': userName
-        }),
+  Future<void> _completeRequestWithImage(Map<String, dynamic> patient) async {
+    final picked = await _pickXrayImage();
+    if (picked == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى اختيار صورة الأشعة أولاً')),
       );
+      return;
+    }
 
-      if (response.statusCode == 200) {
-        setState(() {
-          xrayWaitingPatients.removeWhere((p) => p['request_id'] == patient['request_id']);
-          filteredPatients.removeWhere((p) => p['request_id'] == patient['request_id']);
-        });
-        
+    setState(() => _isUploadingImage = true);
+    try {
+      final uploadedUrl = await _uploadImageToOracleStorage(picked, folder: 'dental_xrays');
+      if (uploadedUrl == null || uploadedUrl.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم إكمال طلب الأشعة للمريض ${patient['patient_name']}'))
+          const SnackBar(content: Text('فشل رفع الصورة، حاول مرة أخرى')),
+        );
+        return;
+      }
+
+      final created = await _createXrayImageRecord(patient, uploadedUrl);
+      if (!created) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('فشل إنشاء سجل الأشعة، حاول مرة أخرى')),
+        );
+        return;
+      }
+
+      // طلب /xray_images يحذف الطلب من XRAY_REQUESTS لذلك لا حاجة لطلب الحالة
+      _removeRequestLocally(patient);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم رفع صورة الأشعة للمريض ${patient['patient_name']}')),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('حدث خطأ في الاتصال!'))
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
+  }
+
+
+  Future<bool> _createXrayImageRecord(Map<String, dynamic> patient, String imageUrl) async {
+    try {
+      final payload = {
+        'request_id': patient['request_id']?.toString(),
+        'xray_type': patient['xray_type'],
+        'image_url': imageUrl,
+        'cloudinary_url': imageUrl,
+        'patient_id': patient['patient_id'],
+        'patient_name': patient['patient_name'],
+        // ترك student_id فارغ لتجنب استعلام FULL_NAME في السيرفر (عمود غير موجود)
+      }..removeWhere((k, v) => v == null || (v is String && v.trim().isEmpty));
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/xray_images'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
       );
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        debugPrint('⚠️ فشل إنشاء سجل الأشعة: ${response.statusCode}');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('⚠️ تعذر إنشاء سجل الأشعة: $e');
+      return false;
+    }
+  }
+
+  void _removeRequestLocally(Map<String, dynamic> patient) {
+    setState(() {
+      xrayWaitingPatients.removeWhere((p) => p['request_id'] == patient['request_id']);
+      filteredPatients.removeWhere((p) => p['request_id'] == patient['request_id']);
+    });
+  }
+
+
+  Future<XFile?> _pickXrayImage() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (picked != null) {
+        if (kIsWeb) {
+        }
+      }
+      return picked;
+    } catch (e) {
+      debugPrint('⚠️ تعذر اختيار الصورة: $e');
+      return null;
+    }
+  }
+
+  Future<String?> _uploadImageToOracleStorage(dynamic image, {String? folder}) async {
+    try {
+      final prefix = folder != null ? '$folder/' : '';
+      final fileName = '${prefix}xray-${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      if (kIsWeb && image is XFile) {
+        final bytes = await image.readAsBytes();
+        return uploadImageToOracle(bytes, fileName: fileName);
+      } else if (kIsWeb && image is Uint8List) {
+        return uploadImageToOracle(image, fileName: fileName);
+      } else if (image is XFile) {
+        return uploadImageToOracle(image, fileName: fileName);
+      } else if (image is Uint8List) {
+        return uploadImageToOracle(image, fileName: fileName);
+      } else {
+        debugPrint('❌ نوع الصورة غير مدعوم');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ خطأ في رفع الصورة إلى Oracle: $e');
+      return null;
     }
   }
 
@@ -207,82 +300,126 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
     
     return Card(
       margin: const EdgeInsets.all(8),
-      elevation: 2,
+      elevation: 1,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            Row(children: [
-              const Icon(Icons.filter_list, color: Color(0xFF2A7A94)),
-              const SizedBox(width: 8),
-              Text(lang == 'ar' ? 'تصفية النتائج' : 'Filter Results', 
-                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ]),
-            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.filter_list, color: Color(0xFF2A7A94), size: 22),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    lang == 'ar' ? 'بحث وتصفية' : 'Search & Filter',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => setState(() => _filtersExpanded = !_filtersExpanded),
+                  icon: Icon(_filtersExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down),
+                  label: Text(_filtersExpanded
+                      ? (lang == 'ar' ? 'إخفاء التفاصيل' : 'Hide filters')
+                      : (lang == 'ar' ? 'إظهار التفاصيل' : 'More filters')),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: lang == 'ar' ? 'ابحث باسم المريض أو الرقم...' : 'Search by patient name or ID...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                isDense: true,
               ),
               onChanged: (value) => _applyFilters(),
             ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
+            const SizedBox(height: 6),
+            Row(
               children: [
-                _buildFilterDropdown(
-                  value: _selectedStatusFilter,
-                  items: {
-                    'all': lang == 'ar' ? 'جميع الحالات' : 'All Status',
-                    'pending': lang == 'ar' ? 'قيد الانتظار' : 'Pending', 
-                    'awaiting_dean_approval': lang == 'ar' ? 'بانتظار موافقة العميد' : 'Awaiting Dean',
-                    'completed': lang == 'ar' ? 'مكتمل' : 'Completed'
-                  },
-                  onChanged: (v) => setState(() { _selectedStatusFilter = v!; _applyFilters(); }),
-                  label: lang == 'ar' ? 'الحالة' : 'Status',
-                ),
-                _buildFilterDropdown(
-                  value: _selectedXrayTypeFilter,
-                  items: {
-                    'all': lang == 'ar' ? 'جميع الأنواع' : 'All Types',
+                _buildChipSummary(
+                  label: lang == 'ar' ? 'نوع' : 'Type',
+                  value: _filterLabel(_selectedXrayTypeFilter, lang, {
+                    'all': lang == 'ar' ? 'الكل' : 'All',
                     'periapical': 'Periapical',
-                    'bitewing': 'Bitewing', 
+                    'bitewing': 'Bitewing',
                     'occlusal': 'Occlusal',
-                    'panoramic' : 'Panoramic',
-                    'tmj' : 'T.M.J',
+                    'panoramic': 'Panoramic',
+                    'tmj': 'T.M.J',
                     'cbct': 'CBCT',
                     'cephalometry': 'Cephalometry',
-                  },
-                  onChanged: (v) => setState(() { _selectedXrayTypeFilter = v!; _applyFilters(); }),
-                  label: lang == 'ar' ? 'نوع الأشعة' : 'X-ray Type',
+                  }),
                 ),
-                _buildFilterDropdown(
-                  value: _selectedClinicFilter,
-                  items: {
-                    'all': lang == 'ar' ? 'جميع العيادات' : 'All Clinics',
-                    'Prosth': lang == 'ar' ? 'تعويضات' : 'Prosth',
-                    'Ortho': lang == 'ar' ? 'تقويم' : 'Ortho',
-                    'Surgery': lang == 'ar' ? 'جراحة' : 'Surgery',
-                    'Endo': lang == 'ar' ? 'معالجة لب' : 'Endo',
-                  },
-                  onChanged: (v) => setState(() { _selectedClinicFilter = v!; _applyFilters(); }),
-                  label: lang == 'ar' ? 'العيادة' : 'Clinic',
+                const SizedBox(width: 6),
+                _buildChipSummary(
+                  label: lang == 'ar' ? 'عيادة' : 'Clinic',
+                  value: _filterLabel(_selectedClinicFilter, lang, {
+                    'all': 'All',
+                    'Surgery': 'Surgery',
+                    'Pedo': 'Pedo',
+                    'Cons': 'Cons',
+                    'Ortho': 'Ortho',
+                    'Prosth': 'Prosth',
+                    'Perio': 'Perio',
+                    'Endo': 'Endo',
+                    'Other': 'Other',
+                  }),
                 ),
-                ElevatedButton.icon(
+                const Spacer(),
+                TextButton.icon(
                   onPressed: _resetFilters,
                   icon: const Icon(Icons.refresh, size: 18),
-                  label: Text(lang == 'ar' ? 'إعادة التعيين' : 'Reset'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey.shade300,
-                    foregroundColor: Colors.black87,
-                  ),
+                  label: Text(lang == 'ar' ? 'إعادة' : 'Reset'),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 200),
+              crossFadeState: _filtersExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              firstChild: const SizedBox.shrink(),
+              secondChild: Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _buildFilterDropdown(
+                      value: _selectedXrayTypeFilter,
+                      items: {
+                        'all': lang == 'ar' ? 'جميع الأنواع' : 'All Types',
+                        'periapical': 'Periapical',
+                        'bitewing': 'Bitewing', 
+                        'occlusal': 'Occlusal',
+                        'panoramic' : 'Panoramic',
+                        'tmj' : 'T.M.J',
+                        'cbct': 'CBCT',
+                        'cephalometry': 'Cephalometry',
+                      },
+                      onChanged: (v) => setState(() { _selectedXrayTypeFilter = v!; _applyFilters(); }),
+                      label: lang == 'ar' ? 'نوع الأشعة' : 'X-ray Type',
+                    ),
+                    _buildFilterDropdown(
+                      value: _selectedClinicFilter,
+                      items: {
+                        'all': 'All Clinics',
+                        'Surgery': 'Surgery',
+                        'Pedo': 'Pedo',
+                        'Cons': 'Cons',
+                        'Ortho': 'Ortho',
+                        'Prosth': 'Prosth',
+                        'Perio': 'Perio',
+                        'Endo': 'Endo',
+                        'Other': 'Other',
+                      },
+                      onChanged: (v) => setState(() { _selectedClinicFilter = v!; _applyFilters(); }),
+                      label: lang == 'ar' ? 'العيادة' : 'Clinic',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -293,7 +430,7 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
               child: Row(children: [
                 const Icon(Icons.info_outline, size: 16, color: Colors.blue),
                 const SizedBox(width: 8),
-                Text('${lang == 'ar' ? 'عرض' : 'Showing'} ${filteredPatients.length} ${lang == 'ar' ? 'من أصل' : 'of'} ${xrayWaitingPatients.length} ${lang == 'ar' ? 'طلب' : 'requests'}',
+                Text('${lang == 'ar' ? 'عرض' : 'Showing'} ${min(filteredPatients.length, 10)} ${lang == 'ar' ? 'من أصل' : 'of'} ${filteredPatients.length} ${lang == 'ar' ? 'مطابقة' : 'matching'}',
                     style: const TextStyle(fontSize: 12, color: Colors.blue)),
               ]),
             ),
@@ -310,7 +447,7 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
     required String label,
   }) {
     return SizedBox(
-      width: 180,
+      width: 170,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -340,6 +477,29 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildChipSummary({required String label, required String value}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(width: 6),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  String _filterLabel(String value, String lang, Map<String, String> labels) {
+    return labels[value] ?? 'All';
   }
 
   @override
@@ -401,7 +561,7 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
                     ))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                      itemCount: filteredPatients.length,
+                      itemCount: min(filteredPatients.length, 10),
                       itemBuilder: (context, index) => _buildPatientCard(filteredPatients[index], context, lang),
                     ),
         ),
@@ -524,9 +684,13 @@ class _XrayRequestListPageState extends State<XrayRequestListPage> {
                             // زر تم التصوير
                             if (!isCompleted)
                               ElevatedButton.icon(
-                                onPressed: awaitingDeanApproval ? null : () => _markRequestAsCompleted(patient),
+                                onPressed: awaitingDeanApproval || _isUploadingImage
+                                    ? null
+                                    : () => _completeRequestWithImage(patient),
                                 icon: const Icon(Icons.check, size: 16),
-                                label: Text(lang == 'ar' ? 'تم التصوير' : 'Completed'),
+                                label: Text(_isUploadingImage
+                                    ? (lang == 'ar' ? 'جاري الرفع...' : 'Uploading...')
+                                    : (lang == 'ar' ? 'تم التصوير' : 'Completed')),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: awaitingDeanApproval ? Colors.red.shade200 : const Color(0xFF2A7A94),
                                   foregroundColor: awaitingDeanApproval ? Colors.red.shade800 : Colors.white,

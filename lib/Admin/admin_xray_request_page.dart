@@ -2,21 +2,21 @@
 import 'package:flutter/material.dart';
 import 'package:dcs/services/auth_http_client.dart' as http;
 import 'dart:convert';
-import 'doctor_sidebar.dart';
+import 'admin_sidebar.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/language_provider.dart';
 import 'package:dcs/config/api_config.dart';
 import 'dart:async';
 
-class DoctorXrayRequestPage extends StatefulWidget {
-  const DoctorXrayRequestPage({super.key});
+class AdminXrayRequestPage extends StatefulWidget {
+  const AdminXrayRequestPage({super.key});
 
   @override
-  State<DoctorXrayRequestPage> createState() => _DoctorXrayRequestPageState();
+  State<AdminXrayRequestPage> createState() => _AdminXrayRequestPageState();
 }
 
-class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
+class _AdminXrayRequestPageState extends State<AdminXrayRequestPage> {
   // For occlusal selection
   String? _occlusalSelected;
   
@@ -44,7 +44,6 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
     'Surgery', 'Pedo', 'Cons', 'Ortho', 'Prosth', 'Perio', 'Endo', 'Other',
   ];
   
-  List<String>? allowedFeatures;
   List<Map<String, dynamic>> students = [];
   String? _selectedStudentId;
   String? _selectedStudentName;
@@ -67,28 +66,30 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
   int? selectedPatientIndex;
   String? patientError;
   bool isSearchingPatient = false;
+  String? _selectedDoctorId;
+  String? _selectedDoctorName;
+  List<Map<String, dynamic>> _myPendingRequests = [];
+  bool _isLoadingRequests = false;
+  String? _editingRequestId;
+  String? _editingRequestStatus;
 
   String _xrayType = 'periapical';
   String? _jaw;
   String? _side;
   List<Map<String, String>> groupTeeth = [];
 
-  String? _doctorName;
-  String? _doctorImageUrl;
-  String? _currentDoctorId;
-  List<Map<String, dynamic>> _myPendingRequests = [];
-  bool _isLoadingRequests = false;
-  String? _editingRequestId;
-  String? _editingRequestStatus;
+  String? _adminName;
+  String? _adminImageUrl;
+  String? _currentAdminId;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _getCurrentDoctorId();
+    _getCurrentAdminId();
   }
 
-  Future<void> _getCurrentDoctorId() async {
+  Future<void> _getCurrentAdminId() async {
     try {
       
       final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
@@ -107,16 +108,16 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
         }
       }
 
-      _currentDoctorId = providerId ?? prefsId ?? userDataId;
+      _currentAdminId = providerId ?? prefsId ?? userDataId;
+      _selectedDoctorId = _currentAdminId;
       
 
-      if (_currentDoctorId == null) {
+      if (_currentAdminId == null) {
         _redirectToLogin();
         return;
       }
 
-      await _loadDoctorInfo();
-      await _loadAllowedFeatures();
+      await _loadAdminInfo();
       await _loadStudents();
       await _loadMyPendingRequests();
       
@@ -137,26 +138,30 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
     });
   }
 
-  Future<void> _loadDoctorInfo() async {
-    if (_currentDoctorId == null) return;
+  Future<void> _loadAdminInfo() async {
+    if (_currentAdminId == null) return;
     
     try {
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/doctors/$_currentDoctorId')
+        Uri.parse('${ApiConfig.baseUrl}/users/$_currentAdminId')
       );
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         
         setState(() {
-          _doctorName = data['FULL_NAME']?.toString();
-          _doctorImageUrl = data['IMAGE']?.toString();
+          _adminName = data['FULL_NAME']?.toString() ?? data['fullName']?.toString();
+          _adminImageUrl = data['IMAGE']?.toString() ?? data['image']?.toString();
+          _selectedDoctorName = _adminName;
+          _selectedDoctorId ??= _currentAdminId;
         });
       } else {
       }
     } catch (e) {
     }
   }
+
+  // لا يوجد اختيار طبيب؛ سيتم استخدام بيانات الإدمن نفسه
 
   Future<void> _loadStudents() async {
     try {
@@ -215,20 +220,24 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
   }
 
   Future<void> _loadMyPendingRequests() async {
-    if (_currentDoctorId == null) return;
+    if (_currentAdminId == null) return;
 
     setState(() => _isLoadingRequests = true);
     try {
-      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/xray_requests?doctorId=$_currentDoctorId'));
+      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/xray_requests'));
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         final List<Map<String, dynamic>> mapped = data
             .map<Map<String, dynamic>>((e) => _mapRequest(e))
             .where((req) {
               final doctorUid = req['doctor_uid']?.toString() ?? '';
+              final doctorName = req['doctor_name']?.toString() ?? '';
+              final belongsToAdmin = doctorUid.isNotEmpty
+                  ? doctorUid == _currentAdminId
+                  : (_adminName != null && _adminName == doctorName);
               final status = (req['status'] ?? '').toString().toLowerCase();
               final isPending = status != 'completed';
-              return doctorUid == _currentDoctorId && isPending;
+              return belongsToAdmin && isPending;
             })
             .toList();
 
@@ -326,7 +335,8 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
       foundStudents = [];
 
       _selectedClinic = request['clinic']?.toString();
-      _doctorName = request['doctor_name']?.toString() ?? _doctorName;
+      _selectedDoctorId = request['doctor_uid']?.toString();
+      _selectedDoctorName = request['doctor_name']?.toString();
 
       _xrayType = xrayType.isNotEmpty ? xrayType : 'periapical';
       _jaw = request['jaw']?.toString();
@@ -351,89 +361,6 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
       const SnackBar(content: Text('تم تحميل الطلب للتعديل')),
     );
   }
-
-  String _statusLabel(String? status) {
-    final normalized = (status ?? '').toLowerCase();
-    if (normalized == 'completed') return 'مكتمل';
-    if (normalized == 'awaiting_dean_approval') return 'بانتظار موافقة العميد';
-    return 'قيد الانتظار';
-  }
-
-  Widget _buildPendingRequestCard(Map<String, dynamic> request, Color primaryColor) {
-    final status = request['status']?.toString();
-    final isEditing = _editingRequestId != null &&
-        _editingRequestId == request['request_id']?.toString();
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      color: isEditing ? Colors.blue.shade50 : null,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: primaryColor.withOpacity(0.1),
-          child: const Icon(Icons.photo_camera_front, color: Color(0xFF2A7A94)),
-        ),
-        title: Text(request['patient_name']?.toString() ?? 'مريض غير معروف',
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('نوع الأشعة: ${request['xray_type'] ?? ''}'),
-            if (request['clinic'] != null)
-              Text('العيادة: ${request['clinic']}'),
-            Text('الحالة: ${_statusLabel(status)}'),
-          ],
-        ),
-        trailing: TextButton.icon(
-          onPressed: () => _prefillFormFromRequest(request),
-          icon: const Icon(Icons.edit),
-          label: const Text('تعديل'),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPendingRequestsSection(Color primaryColor) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'طلبات الأشعة الخاصة بي (غير مصورة)',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: primaryColor,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: _loadMyPendingRequests,
-                  tooltip: 'تحديث',
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_isLoadingRequests)
-              const Center(child: CircularProgressIndicator())
-            else if (_myPendingRequests.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Text('لا يوجد طلبات معلقة حالياً'),
-              )
-            else
-              ..._myPendingRequests
-                  .map((req) => _buildPendingRequestCard(req, primaryColor)),
-          ],
-        ),
-      ),
-    );
-  }
-
 
   // الطريقة البديلة إذا فشل الـ endpoint الجديد
   Future<void> _loadStudentsFallback() async {
@@ -462,48 +389,6 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
       }
     } catch (e) {
     }
-  }
-
-  Future<void> _loadAllowedFeatures() async {
-    if (_currentDoctorId == null) return;
-    
-    try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/doctors/$_currentDoctorId')
-      );
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        List<String> features = [];
-        
-        try {
-          if (data['ALLOWED_FEATURES'] != null) {
-            if (data['ALLOWED_FEATURES'] is String) {
-              features = List<String>.from(json.decode(data['ALLOWED_FEATURES']));
-            } else if (data['ALLOWED_FEATURES'] is List) {
-              features = List<String>.from(data['ALLOWED_FEATURES']);
-            }
-          }
-        } catch (e) {
-        }
-        
-        setState(() {
-          allowedFeatures = features.isNotEmpty ? features : _getDefaultDoctorFeatures();
-        });
-        
-      }
-    } catch (e) {
-      setState(() {
-        allowedFeatures = _getDefaultDoctorFeatures();
-      });
-    }
-  }
-
-  List<String> _getDefaultDoctorFeatures() {
-    return [
-      'waiting_list',
-      'clinical_procedures_form',
-    ];
   }
 
   // البحث عن المريض
@@ -631,9 +516,9 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
   }
 
   Future<void> _submitRequest() async {
-    if (_currentDoctorId == null) {
+    if (_currentAdminId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لم يتم التعرف على هوية الدكتور')));
+        const SnackBar(content: Text('لم يتم التعرف على هوية المشرف')));
       return;
     }
 
@@ -701,9 +586,9 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
       'groupTeeth': groupTeeth.isNotEmpty ? groupTeeth : null,
       'periapicalTeeth': _getSelectedTeeth('periapical'),
       'bitewingTeeth': _getSelectedTeeth('bitewing'),
-      'doctorName': _doctorName,
+      'doctorName': _selectedDoctorName ?? _adminName,
       'clinic': _selectedClinic,
-      'doctorUid': _currentDoctorId,
+      'doctorUid': _selectedDoctorId ?? _currentAdminId,
       'requiresDeanApproval': requiresDeanApproval,
       'status': _editingRequestStatus ??
           (requiresDeanApproval ? 'awaiting_dean_approval' : 'pending'),
@@ -833,6 +718,8 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
       _side = null;
       _occlusalSelected = null;
       _selectedClinic = null;
+      _selectedDoctorId = _currentAdminId;
+      _selectedDoctorName = _adminName;
       groupTeeth.clear();
       periapicalGridSelected = List.filled(32, false);
       foundPatients = [];
@@ -907,19 +794,16 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
     return Directionality(
       textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
-        drawer: allowedFeatures == null
-            ? const Drawer(child: Center(child: CircularProgressIndicator()))
-            : DoctorSidebar(
-                primaryColor: primaryColor,
-                accentColor: accentColor,
-                userName: _doctorName,
-                userImageUrl: _doctorImageUrl,
-                parentContext: context,
-                collapsed: false,
-                translate: (ctx, key) => key,
-                doctorUid: _currentDoctorId ?? '',
-                allowedFeatures: allowedFeatures!,
-              ),
+        drawer: AdminSidebar(
+          primaryColor: primaryColor,
+          accentColor: accentColor,
+          userName: _adminName,
+          userImageUrl: _adminImageUrl,
+          parentContext: context,
+          collapsed: false,
+          translate: (ctx, key) => key,
+          userRole: 'admin',
+        ),
         appBar: AppBar(
           backgroundColor: primaryColor,
           title: Text(isArabic ? 'طلب أشعة' : 'Radiology Request'),
@@ -1396,6 +1280,88 @@ class _DoctorXrayRequestPageState extends State<DoctorXrayRequestPage> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  String _statusLabel(String? status) {
+    final normalized = (status ?? '').toLowerCase();
+    if (normalized == 'completed') return 'مكتمل';
+    if (normalized == 'awaiting_dean_approval') return 'بانتظار موافقة العميد';
+    return 'قيد الانتظار';
+  }
+
+  Widget _buildPendingRequestCard(Map<String, dynamic> request, Color primaryColor) {
+    final status = request['status']?.toString();
+    final isEditing = _editingRequestId != null &&
+        _editingRequestId == request['request_id']?.toString();
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      color: isEditing ? Colors.blue.shade50 : null,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: primaryColor.withOpacity(0.1),
+          child: const Icon(Icons.photo_camera_front, color: Color(0xFF2A7A94)),
+        ),
+        title: Text(request['patient_name']?.toString() ?? 'مريض غير معروف',
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('نوع الأشعة: ${request['xray_type'] ?? ''}'),
+            if (request['clinic'] != null)
+              Text('العيادة: ${request['clinic']}'),
+            Text('الحالة: ${_statusLabel(status)}'),
+          ],
+        ),
+        trailing: TextButton.icon(
+          onPressed: () => _prefillFormFromRequest(request),
+          icon: const Icon(Icons.edit),
+          label: const Text('تعديل'),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPendingRequestsSection(Color primaryColor) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'طلبات الأشعة الخاصة بي (غير مصورة)',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: primaryColor,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadMyPendingRequests,
+                  tooltip: 'تحديث',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_isLoadingRequests)
+              const Center(child: CircularProgressIndicator())
+            else if (_myPendingRequests.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.0),
+                child: Text('لا يوجد طلبات معلقة حالياً'),
+              )
+            else
+              ..._myPendingRequests
+                  .map((req) => _buildPendingRequestCard(req, primaryColor)),
+          ],
         ),
       ),
     );

@@ -32,13 +32,14 @@ void main() async {
   // إعداد الإشعارات المحلية
   const AndroidInitializationSettings initializationSettingsAndroid =
       AndroidInitializationSettings('@mipmap/ic_launcher');
-    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings();
-  
-    const InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
-    );
-  
+  const DarwinInitializationSettings initializationSettingsIOS =
+      DarwinInitializationSettings();
+
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+    iOS: initializationSettingsIOS,
+  );
+
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
   runApp(
@@ -87,16 +88,16 @@ class MyApp extends StatelessWidget {
 // دالة للاستماع للإشعارات من Oracle بدلاً من Firebase
 void listenForNotifications(String userId) async {
   // يمكنك استخدام تقنيات مختلفة للاستماع للإشعارات:
-  
+
   // 1. Polling: طلب دوري للسيرفر للتحقق من وجود إشعارات جديدة
   // 2. WebSockets: اتصال مباشر ومستمر مع السيرفر
   // 3. Push Notifications: استخدام خدمات مثل FCM مع السيرفر
-  
+
   // هنا مثال على الـ Polling (أبسط طريقة)
   if (kDebugMode) {
     print("بدء الاستماع للإشعارات للمستخدم: $userId");
   }
-  
+
   // هذا مثال بسيط - في التطبيق الحقيقي تحتاج لتخزين آخر وقت تحقق
   // وتنفيذ آلية أكثر كفاءة
   _checkForNotifications(userId);
@@ -112,14 +113,15 @@ void _checkForNotifications(String userId) async {
 
     if (response.statusCode == 200) {
       final List<dynamic> notifications = json.decode(response.body);
-      
+
       for (var notification in notifications) {
         if (notification['read'] == false) {
           showLocalNotification(notification['title'], notification['message']);
-          
+
           // تحديث حالة الإشعار كمقروء (اختياري)
           await http.patch(
-            Uri.parse('$_apiBaseUrl/notifications/$userId/${notification['id']}'),
+            Uri.parse(
+                '$_apiBaseUrl/notifications/$userId/${notification['id']}'),
             headers: {'Content-Type': 'application/json'},
             body: json.encode({'read': true}),
           );
@@ -131,7 +133,7 @@ void _checkForNotifications(String userId) async {
       print('خطأ في جلب الإشعارات: $e');
     }
   }
-  
+
   // التحقق مرة أخرى بعد فترة (مثال: كل 30 ثانية)
   Future.delayed(const Duration(seconds: 30), () {
     _checkForNotifications(userId);
@@ -149,10 +151,10 @@ void showLocalNotification(String? title, String? body) async {
     priority: Priority.high,
     showWhen: true,
   );
-  
+
   const NotificationDetails platformChannelSpecifics =
       NotificationDetails(android: androidPlatformChannelSpecifics);
-  
+
   await flutterLocalNotificationsPlugin.show(
     0,
     title ?? 'تنبيه',
@@ -177,7 +179,8 @@ class ApiService {
     }
   }
 
-  static Future<http.Response> post(String endpoint, Map<String, dynamic> body) async {
+  static Future<http.Response> post(
+      String endpoint, Map<String, dynamic> body) async {
     try {
       return await http.post(
         Uri.parse('$baseUrl$endpoint'),
@@ -189,7 +192,8 @@ class ApiService {
     }
   }
 
-  static Future<http.Response> put(String endpoint, Map<String, dynamic> body) async {
+  static Future<http.Response> put(
+      String endpoint, Map<String, dynamic> body) async {
     try {
       return await http.put(
         Uri.parse('$baseUrl$endpoint'),

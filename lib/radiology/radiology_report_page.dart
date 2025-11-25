@@ -176,7 +176,7 @@ class _RadiologyReportPageState extends State<RadiologyReportPage> {
     }
 
     if (data is List) {
-      final Map<dynamic, dynamic> grouped = {};
+      final Map<String, Map<String, Map<String, int>>> grouped = {};
       for (final item in data) {
         if (item is Map) {
           final mapItem = Map<dynamic, dynamic>.from(item);
@@ -187,14 +187,57 @@ class _RadiologyReportPageState extends State<RadiologyReportPage> {
                   mapItem['CLINIC_NAME'] ??
                   'غير محدد')
               .toString();
+
           final countValue =
               mapItem['count'] ?? mapItem['COUNT'] ?? mapItem['total'] ?? mapItem['TOTAL'] ?? 1;
           final count = _parseCount(countValue);
 
-          final clinicMap = grouped.putIfAbsent(xrayType, () => <String, dynamic>{});
-          if (clinicMap is Map) {
-            final prev = _parseCount(clinicMap[clinic]);
-            clinicMap[clinic] = prev + count;
+          final clinicMap = grouped.putIfAbsent(xrayType, () => <String, Map<String, int>>{});
+          final yearMap = clinicMap.putIfAbsent(clinic, () => {'year_4': 0, 'year_5': 0});
+
+          // إذا كان الرد فيه year_4 / year_5 أو YEAR4_COUNT مباشرةً
+          final hasYearColumns = mapItem.keys.any((k) =>
+              k.toString().toLowerCase().contains('year_4') ||
+              k.toString().toLowerCase().contains('year4') ||
+              k.toString().toLowerCase().contains('year5'));
+          if (hasYearColumns) {
+            final y4 = _parseCount(
+              mapItem['year_4'] ??
+                  mapItem['YEAR_4'] ??
+                  mapItem['year4'] ??
+                  mapItem['YEAR4'] ??
+                  mapItem['year4_count'] ??
+                  mapItem['YEAR4_COUNT'],
+            );
+            final y5 = _parseCount(
+              mapItem['year_5'] ??
+                  mapItem['YEAR_5'] ??
+                  mapItem['year5'] ??
+                  mapItem['YEAR5'] ??
+                  mapItem['year5_count'] ??
+                  mapItem['YEAR5_COUNT'],
+            );
+            yearMap['year_4'] = (yearMap['year_4'] ?? 0) + y4;
+            yearMap['year_5'] = (yearMap['year_5'] ?? 0) + y5;
+            continue;
+          }
+
+          final studyYearRaw = mapItem['study_year'] ??
+              mapItem['STUDY_YEAR'] ??
+              mapItem['studyYear'] ??
+              mapItem['STUDYYEAR'] ??
+              mapItem['student_year'] ??
+              mapItem['STUDENT_YEAR'] ??
+              mapItem['year'] ??
+              mapItem['YEAR'];
+          final studyYear = _parseStudyYear(studyYearRaw);
+
+          if (studyYear == 4) {
+            yearMap['year_4'] = (yearMap['year_4'] ?? 0) + count;
+          } else if (studyYear == 5) {
+            yearMap['year_5'] = (yearMap['year_5'] ?? 0) + count;
+          } else {
+            yearMap['year_4'] = (yearMap['year_4'] ?? 0) + count;
           }
         }
       }
@@ -209,6 +252,25 @@ class _RadiologyReportPageState extends State<RadiologyReportPage> {
     if (value is num) return value.toInt();
     if (value == null) return 0;
     return int.tryParse(value.toString()) ?? 0;
+  }
+
+  int? _parseStudyYear(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    final text = value.toString().toLowerCase();
+
+    // أرقام مباشرة (كاملة أو داخل النص)
+    final digitMatch = RegExp(r'(4|5|\\d+)').firstMatch(text);
+    if (digitMatch != null) {
+      final numVal = int.tryParse(digitMatch.group(1)!);
+      if (numVal != null) return numVal;
+    }
+
+    // كلمات عربية/إنجليزية
+    if (text.contains('خامس') || text.contains('خامسة') || text.contains('fifth')) return 5;
+    if (text.contains('رابع') || text.contains('رابعة') || text.contains('fourth')) return 4;
+
+    return null;
   }
 
   Future<void> _pickDate() async {
@@ -713,87 +775,33 @@ class _RadiologyReportPageState extends State<RadiologyReportPage> {
   }
 
   Widget _buildReportTable(Map<dynamic, dynamic> data, Color primaryColor, Color accentColor) {
-    bool hasYear = false;
-    for (final entry in data.entries) {
-      if (entry.value is Map) {
-        final clinicsMap = entry.value as Map<dynamic, dynamic>;
-        for (final clinicEntry in clinicsMap.entries) {
-          if (clinicEntry.value is Map && (clinicEntry.value as Map).keys.any((k) => k.toString().startsWith('year_'))) {
-            hasYear = true;
-            break;
-          }
-        }
-      }
-      if (hasYear) break;
-    }
-
-    if (hasYear) {
-      return DataTable(
-        headingRowColor: MaterialStateProperty.all(primaryColor.withOpacity(0.1)),
-        headingTextStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF2A7A94)),
-        dataRowColor: MaterialStateProperty.all(Colors.white),
-        columns: const [
-          DataColumn(label: Text('نوع الصورة')),
-          DataColumn(label: Text('العيادة')),
-          DataColumn(label: Text('سنة رابعة')),
-          DataColumn(label: Text('سنة خامسة')),
-        ],
-        rows: [
-          for (final entry in data.entries)
-            if (entry.value is Map)
-              for (final clinicEntry in (entry.value as Map<dynamic, dynamic>).entries)
-                if (clinicEntry.value is Map)
-                  DataRow(cells: [
-                    DataCell(Text(entry.key.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
-                    DataCell(Text(clinicEntry.key.toString())),
-                    DataCell(Text((clinicEntry.value['year_4'] ?? 0).toString(), style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
-                    DataCell(Text((clinicEntry.value['year_5'] ?? 0).toString(), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
-                  ])
-                else
-                  DataRow(cells: [
-                    DataCell(Text(entry.key.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
-                    DataCell(Text(clinicEntry.key.toString())),
-                    DataCell(Text(clinicEntry.value.toString(), style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
-                    const DataCell(Text('-', style: TextStyle(color: Colors.grey))),
-                  ]),
-        ],
-      );
-    } else {
-      return DataTable(
-        headingRowColor: MaterialStateProperty.all(primaryColor.withOpacity(0.1)),
-        headingTextStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF2A7A94)),
-        dataRowColor: MaterialStateProperty.all(Colors.white),
-        columns: const [
-          DataColumn(label: Text('نوع الصورة')),
-          DataColumn(label: Text('العيادة / عدد الطلبات')),
-        ],
-        rows: data.entries.map<DataRow>((entry) {
-          final xrayType = entry.key.toString();
-          final clinicsMap = entry.value as Map<dynamic, dynamic>?;
-          final List<Widget> clinicsWidgets = clinicsMap != null
-              ? clinicsMap.entries.map<Widget>((e) =>
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: accentColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: accentColor.withOpacity(0.3)),
-                    ),
-                    child: Text('${e.key}: ${e.value}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  )
-                ).toList()
-              : [];
-          return DataRow(cells: [
-            DataCell(Text(xrayType, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
-            DataCell(
-              clinicsWidgets.isNotEmpty
-                  ? Wrap(spacing: 4, runSpacing: 2, children: clinicsWidgets)
-                  : const Text('-', style: TextStyle(color: Colors.grey)),
-            ),
-          ]);
-        }).toList(),
-      );
-    }
+    return DataTable(
+      headingRowColor: MaterialStateProperty.all(primaryColor.withOpacity(0.1)),
+      headingTextStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF2A7A94)),
+      dataRowColor: MaterialStateProperty.all(Colors.white),
+      columns: const [
+        DataColumn(label: Text('نوع الأشعة')),
+        DataColumn(label: Text('العيادة')),
+        DataColumn(label: Text('السنة 4')),
+        DataColumn(label: Text('السنة 5')),
+      ],
+      rows: [
+        for (final entry in data.entries)
+          if (entry.value is Map)
+            for (final clinicEntry in (entry.value as Map<dynamic, dynamic>).entries)
+              DataRow(cells: [
+                DataCell(Text(entry.key.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+                DataCell(Text(clinicEntry.key.toString())),
+                DataCell(Text(
+                  (clinicEntry.value is Map ? clinicEntry.value['year_4'] : clinicEntry.value ?? 0).toString(),
+                  style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                )),
+                DataCell(Text(
+                  (clinicEntry.value is Map ? clinicEntry.value['year_5'] : 0).toString(),
+                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                )),
+              ])
+      ],
+    );
   }
 }

@@ -308,6 +308,11 @@ class _StudentXrayUploadPageState extends State<StudentXrayUploadPage> {
               duration: const Duration(seconds: 3),
             )
           );
+
+          // العودة مباشرة لقائمة الطلبات بعد اكتمال الرفع
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
         } else {
           throw Exception('فشل في الاتصال بالخادم: ${response.statusCode}');
         }

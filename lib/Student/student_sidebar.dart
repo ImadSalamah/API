@@ -25,7 +25,8 @@ class StudentSidebar extends StatelessWidget {
     if (allowedFeatures.contains(feature)) return true;
     // Backward compatible aliases
     if (feature == 'examined_patients' && allowedFeatures.contains('view_examinations')) return true;
-    if (feature == 'upload_xray' && allowedFeatures.contains('xray_upload')) return true;
+    // تم تعطيل خاصية رفع الأشعة للطالب حالياً
+    if (feature == 'upload_xray') return false;
     return false;
   }
 

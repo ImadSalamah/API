@@ -5,7 +5,7 @@ import '../../providers/secretary_provider.dart';
 import '../dashboard/secretary_dashboard.dart';
 import 'all_patients_page.dart';
 import '../Shared/waiting_list_page.dart';
-import '../Shared/add_patient_page.dart';
+import 'add_patient_page.dart';
 import '../Admin/booking_settings_page.dart';
 import 'account_approv.dart';
 

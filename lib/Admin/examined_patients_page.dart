@@ -1929,6 +1929,7 @@ class _AdminExaminedPatientsPageState extends State<AdminExaminedPatientsPage> {
       'ortho4': 'ortho4',
       'peado4': 'peado4',
       'prostho4': 'prostho4',
+      'endo4': 'endo4',
       'perio4': 'perio4',
       'oral_medicine4': 'oral_medicine4',
       'oral_surgery4': 'oral_surgery4',
@@ -1938,6 +1939,7 @@ class _AdminExaminedPatientsPageState extends State<AdminExaminedPatientsPage> {
       'ortho5': 'ortho5',
       'peado5': 'peado5',
       'prostho5': 'prostho5',
+      'endo5': 'endo5',
       'perio5': 'perio5',
       'oral_medicine5': 'oral_medicine5',
       'oral_surgery5': 'oral_surgery5',
@@ -1947,8 +1949,10 @@ class _AdminExaminedPatientsPageState extends State<AdminExaminedPatientsPage> {
     };
 
     dentalFormData.forEach((key, value) {
-      if (fieldMapping.containsKey(key)) {
-        final mappedKey = fieldMapping[key]!;
+      final keyStr = key.toString().toLowerCase();
+
+      if (fieldMapping.containsKey(keyStr)) {
+        final mappedKey = fieldMapping[keyStr]!;
         result[mappedKey] = _convertToBool(value);
       }
     });

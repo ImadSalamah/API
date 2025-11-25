@@ -10,6 +10,7 @@ import '../Doctor/initial_examination.dart';
 import '../Doctor/doctor_sidebar.dart';
 import '../utils/name_utils.dart';
 import '../Secretry/secretary_sidebar.dart';
+import '../Admin/admin_sidebar.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dcs/config/api_config.dart';
@@ -144,7 +145,7 @@ class _WaitingListPageState extends State<WaitingListPage> {
     _setupRealtimeListeners();
     _scheduleNightlyCleanup();
     _searchController.addListener(_filterWaitingList);
-    if (widget.userRole == 'doctor') {
+    if (widget.userRole == 'doctor' || widget.userRole == 'admin') {
       _loadDoctorInfo();
     }
   }
@@ -521,6 +522,50 @@ Future<void> _moveToInitialExamination(Map<String, dynamic> patientData) async {
           ),
         ),
       );
+    } else if (widget.userRole == 'admin') {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => _removeFromWaitingList(patient['WAITING_ID']?.toString() ?? ''),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                _translate(context, 'remove_from_waiting_list'),
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => _moveToInitialExamination(patient),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                _translate(context, 'next_step'),
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+          ),
+        ],
+      );
     }
     return Container();
   }
@@ -779,6 +824,19 @@ Future<void> _moveToInitialExamination(Map<String, dynamic> patientData) async {
         collapsed: false,
         pendingAccountsCount: 0,
         userRole: 'secretary',
+      );
+    } else if (widget.userRole == 'admin') {
+      return AdminSidebar(
+        primaryColor: primaryColor,
+        accentColor: primaryColor,
+        userName: _doctorName ?? "ادمن",
+        userImageUrl: _doctorImageUrl,
+        parentContext: context,
+        translate: _translate,
+        onLogout: null,
+        collapsed: false,
+        allUsers: const [],
+        userRole: 'admin',
       );
     }
     return null;

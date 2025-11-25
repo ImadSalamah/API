@@ -9,7 +9,6 @@ import 'package:dcs/services/auth_http_client.dart' as http;
 import '../loginpage.dart' show UserRole, LoginPage;
 import 'role_guard.dart';
 import '../Student/student_add_patient_page.dart';
-import '../Student/student_xray_upload_page.dart';
 import '../Student/examined_patients_page.dart';
 import '../Student/student_sidebar.dart';
 import '../utils/name_utils.dart';
@@ -188,64 +187,14 @@ String _getCurrentUserId() {
   }
 
   Future<void> _openXrayUpload(BuildContext context) async {
-    try {
-      final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-      final studentId = languageProvider.currentUserId;
-
-      if (studentId == null || studentId.isEmpty) {
-        final prefs = await SharedPreferences.getInstance();
-        final userDataJson = prefs.getString('userData');
-        if (userDataJson != null) {
-          final userData = json.decode(userDataJson);
-          final fallbackStudentId = userData['USER_ID']?.toString();
-
-          if (fallbackStudentId != null && fallbackStudentId.isNotEmpty) {
-            languageProvider.setUserId(fallbackStudentId);
-            if (!mounted) return;
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => StudentXrayUploadPage(
-                studentId: fallbackStudentId,
-                studentName: _userName,
-                studentImageUrl: _userImageUrl,
-              ),
-            ),
-          );
-            return;
-          }
-        }
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_translate(context, 'error_loading_data')),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => StudentXrayUploadPage(
-            studentId: studentId,
-            studentName: _userName,
-            studentImageUrl: _userImageUrl,
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('حدث خطأ، يرجى المحاولة مرة أخرى'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    // تم تعطيل رفع الأشعة من واجهة الطالب حالياً
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('تم تعطيل رفع الأشعة من واجهة الطالب حالياً'),
+        backgroundColor: Colors.orange,
+      ),
+    );
   }
 
   void showDashboardBanner(String message, {Color backgroundColor = Colors.green}) {
@@ -368,7 +317,8 @@ String _getCurrentUserId() {
             studentName: _userName,
             studentImageUrl: _userImageUrl,
             studentId: _getCurrentUserId(),
-            allowedFeatures: const ['examined_patients', 'add_patient', 'upload_xray'],
+            // إخفاء خاصية رفع الأشعة من قائمة الطالب حالياً
+            allowedFeatures: const ['examined_patients', 'add_patient'],
           ),
           body: Builder(
             builder: (context) {

@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:convert';
+import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'doctors_management_page.dart';
 import 'package:provider/provider.dart';
@@ -16,8 +17,12 @@ import '../Admin/add_student.dart';
 import '../Admin/admin_sidebar.dart';
 import '../Admin/assign_patients_admin_page.dart';
 import '../Admin/booking_settings_page.dart';
+import '../Admin/admin_prescription_page.dart';
+import '../Admin/admin_xray_request_page.dart';
+import '../Shared/waiting_list_page.dart';
 // ✅ استيراد الصفحة الجديدة للإدمن
 import '../Admin/examined_patients_page.dart';
+import '../Secretry/all_patients_page.dart';
 import 'package:dcs/config/api_config.dart';
 
 class AdminDashboard extends StatelessWidget {
@@ -32,6 +37,20 @@ class AdminDashboard extends StatelessWidget {
   }
 }
 
+class _AllInputScrollBehavior extends MaterialScrollBehavior {
+  const _AllInputScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.invertedStylus,
+        PointerDeviceKind.unknown,
+      };
+}
+
 class _AdminDashboardContent extends StatefulWidget {
   const _AdminDashboardContent();
 
@@ -43,9 +62,10 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
   final Color primaryColor = const Color(0xFF2A7A94);
   final Color accentColor = const Color(0xFF4AB8D8);
   final Color webSidebarColor = const Color(0xFFF5F5F5);
-  
+
   // قاعدة البيانات الجديدة - Oracle API
-  final String _apiBaseUrl = ApiConfig.baseUrl; // تغيير هذا إلى عنوان خادم Oracle الخاص بك
+  final String _apiBaseUrl =
+      ApiConfig.baseUrl; // تغيير هذا إلى عنوان خادم Oracle الخاص بك
 
   String _userName = '';
   String _userImageUrl = '';
@@ -56,19 +76,29 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
   bool hasNewNotification = false;
 
   final Map<String, Map<String, String>> _translations = {
-  'manage_doctors': {'ar': 'إدارة الأطباء', 'en': 'Manage Doctors'},
-  'booking_table': {'ar': 'جدول الحجوزات', 'en': 'Booking Table'},
+    'manage_doctors': {'ar': 'إدارة الأطباء', 'en': 'Manage Doctors'},
+    'booking_table': {'ar': 'جدول الحجوزات', 'en': 'Booking Table'},
     'admin_dashboard': {'ar': 'لوحة الإدارة', 'en': 'Admin Dashboard'},
     'manage_users': {'ar': 'إدارة المستخدمين', 'en': 'Manage Users'},
     'add_user': {'ar': 'إضافة مستخدم', 'en': 'Add User'},
-    'add_user_student': {'ar': 'إضافة طالب طب اسنان', 'en': 'Add Dental Student'},
+    'add_user_student': {
+      'ar': 'إضافة طالب طب اسنان',
+      'en': 'Add Dental Student'
+    },
     'change_permissions': {'ar': 'تغيير الصلاحيات', 'en': 'Change Permissions'},
     'admin': {'ar': 'مدير النظام', 'en': 'System Admin'},
     'home': {'ar': 'الرئيسية', 'en': 'Home'},
     'settings': {'ar': 'الإعدادات', 'en': 'Settings'},
     // ✅ الترجمات الجديدة
     'examined_patients': {'ar': 'المرضى المفحوصين', 'en': 'Examined Patients'},
-    'all_patients_reports': {'ar': 'تقارير جميع المرضى', 'en': 'All Patients Reports'},
+    'prescription': {'ar': 'الوصفات الطبية', 'en': 'Prescriptions'},
+    'xray_request': {'ar': 'طلبات الأشعة', 'en': 'X-Ray Requests'},
+    'all_patients_reports': {
+      'ar': 'تقارير جميع المرضى',
+      'en': 'All Patients Reports'
+    },
+    'patient_files': {'ar': 'ملفات المرضى', 'en': 'Patient Files'},
+    'waiting_list': {'ar': 'قائمة الانتظار', 'en': 'Waiting List'},
     'app_name': {
       'ar': 'عيادات أسنان الجامعة العربية الأمريكية',
       'en': 'Arab American University Dental Clinics'
@@ -120,19 +150,19 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
       // حاول الحصول من allUsers إذا كان محمل
       if (allUsers.isNotEmpty && _userName.isNotEmpty) {
         final currentUser = allUsers.firstWhere(
-          (user) => 
-            (user['FULL_NAME']?.toString().trim() == _userName) ||
-            (user['name']?.toString().trim() == _userName),
+          (user) =>
+              (user['FULL_NAME']?.toString().trim() == _userName) ||
+              (user['name']?.toString().trim() == _userName),
           orElse: () => {},
         );
-        
+
         if (currentUser.isNotEmpty) {
-          return currentUser['USER_UID']?.toString() ?? 
-                 currentUser['uid']?.toString() ??
-                 currentUser['USER_ID']?.toString();
+          return currentUser['USER_UID']?.toString() ??
+              currentUser['uid']?.toString() ??
+              currentUser['USER_ID']?.toString();
         }
       }
-      
+
       // أو حاول من SharedPreferences
       return null; // يمكنك تعديل هذا حسب نظامك
     } catch (e) {
@@ -144,6 +174,125 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
   // تعريف قائمة الفيتشرات كمتغير في الكلاس
   List<Map<String, dynamic>> getFeaturesList(BuildContext context) {
     return [
+      {
+        'icon': Icons.pending_actions,
+        'title': _translate(context, 'waiting_list'),
+        'color': Colors.deepOrange,
+        'onTap': () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const WaitingListPage(userRole: 'admin'),
+            ),
+          );
+        },
+      },
+      {
+        'icon': Icons.check_circle,
+        'title': _translate(context, 'examined_patients'),
+        'color': Colors.teal,
+        'onTap': () {
+          final languageProvider =
+              Provider.of<LanguageProvider>(context, listen: false);
+
+          if (!languageProvider.isEnglish) {
+            languageProvider.setLocale(const Locale('en'));
+          }
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AdminExaminedPatientsPage(
+                adminName: _userName,
+                adminImageUrl: _userImageUrl,
+                currentUserId: _getCurrentUserId(),
+                userAllowedFeatures: [
+                  'all_reports',
+                  'all_patients',
+                  'all_users'
+                ],
+              ),
+            ),
+          );
+        },
+      },
+      {
+        'icon': Icons.medication,
+        'title': _translate(context, 'prescription'),
+        'color': Colors.pink,
+        'onTap': () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AdminPrescriptionPage(),
+            ),
+          );
+        },
+      },
+      {
+        'icon': Icons.medical_information,
+        'title': _translate(context, 'xray_request'),
+        'color': Colors.indigo,
+        'onTap': () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AdminXrayRequestPage(),
+            ),
+          );
+        },
+      },
+      {
+        'icon': Icons.medical_services,
+        'title': _translate(context, 'manage_doctors'),
+        'color': Colors.teal,
+        'onTap': () {
+          final doctors = allUsers
+              .where((user) =>
+                  (user['role'] == 'doctor' || user['ROLE'] == 'doctor'))
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DoctorsManagementPage(
+                doctors: doctors,
+                userName: _userName,
+                userImageUrl: _userImageUrl,
+                translate: _translate,
+                onLogout: _logout,
+                allUsers: allUsers,
+              ),
+            ),
+          );
+        },
+      },
+      {
+        'icon': Icons.table_chart,
+        'title': _translate(context, 'booking_table'),
+        'color': Colors.orange,
+        'onTap': () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const BookingSettingsPage(),
+            ),
+          );
+        },
+      },
+      {
+        'icon': Icons.folder_shared,
+        'title': _translate(context, 'patient_files'),
+        'color': Colors.blueGrey,
+        'onTap': () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PatientFilesPage(userRole: 'admin'),
+            ),
+          );
+        },
+      },
       {
         'icon': Icons.people,
         'title': _translate(context, 'manage_users'),
@@ -177,7 +326,7 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
                 userImageUrl: _userImageUrl,
                 translate: _translate,
                 onLogout: _logout,
-                allUsers: allUsers, // إضافة هذا
+                allUsers: allUsers,
               ),
             ),
           );
@@ -196,7 +345,7 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
                 userImageUrl: _userImageUrl,
                 translate: _translate,
                 onLogout: _logout,
-                allUsers: allUsers, // إضافة هذا
+                allUsers: allUsers,
               ),
             ),
           );
@@ -204,7 +353,9 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
       },
       {
         'icon': Icons.assignment_ind,
-        'title': _isArabic(context) ? 'تعيين المرضى للطلاب' : 'Assign Patients to Students',
+        'title': _isArabic(context)
+            ? 'تعيين المرضى للطلاب'
+            : 'Assign Patients to Students',
         'color': Colors.deepPurple,
         'onTap': () {
           Navigator.push(
@@ -215,67 +366,6 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
                 userImageUrl: _userImageUrl,
                 onLogout: _logout,
                 allUsers: allUsers,
-              ),
-            ),
-          );
-        },
-      },
-      {
-        'icon': Icons.medical_services,
-        'title': _translate(context, 'manage_doctors'),
-        'color': Colors.teal,
-        'onTap': () {
-          final doctors = allUsers.where((user) =>
-            (user['role'] == 'doctor' || user['ROLE'] == 'doctor')
-          ).map((e) => Map<String, dynamic>.from(e)).toList();
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DoctorsManagementPage(
-                doctors: doctors,
-                userName: _userName,
-                userImageUrl: _userImageUrl,
-                translate: _translate,
-                onLogout: _logout,
-                allUsers: allUsers,
-              ),
-            ),
-          );
-        },
-      },
-      {
-        'icon': Icons.table_chart,
-        'title': _translate(context, 'booking_table'),
-        'color': Colors.orange,
-        'onTap': () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const BookingSettingsPage(),
-            ),
-          );
-        },
-      },
-      {
-        'icon': Icons.check_circle,
-        'title': _translate(context, 'examined_patients'), // ✅ استخدام الترجمة
-        'color': Colors.teal,
-        'onTap': () {
-          final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-          
-          // ✅ تأكد أن اللغة إنجليزية للتوافق مع الصفحة الجديدة
-          if (!languageProvider.isEnglish) {
-            languageProvider.setLocale(const Locale('en'));
-          }
-          
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AdminExaminedPatientsPage(
-                adminName: _userName,
-                adminImageUrl: _userImageUrl,
-                currentUserId: _getCurrentUserId(),
-                userAllowedFeatures: ['all_reports', 'all_patients', 'all_users'],
               ),
             ),
           );
@@ -298,7 +388,7 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
       final userDataJson = prefs.getString('userData');
 
       if (userDataJson == null) {
-      if (!mounted) return;
+        if (!mounted) return;
         setState(() {
           _userName = _translate(context, 'admin');
           _isLoading = false;
@@ -306,10 +396,10 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
         return;
       }
 
-  final userData = json.decode(userDataJson);
-  debugPrint('ADMIN DASHBOARD userData: $userData');
+      final userData = json.decode(userDataJson);
+      debugPrint('ADMIN DASHBOARD userData: $userData');
       if (!mounted) return;
-  _updateUserData(userData);
+      _updateUserData(userData);
     } catch (e) {
       debugPrint('Error loading admin data: $e');
       if (!mounted) return;
@@ -325,7 +415,7 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
     try {
       // الحصول على التوكن من SharedPreferences
       final token = await _getToken();
-      
+
       if (token == null) {
         throw Exception('No authentication token found');
       }
@@ -341,12 +431,13 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
       if (response.statusCode == 200) {
         final List<dynamic> users = json.decode(response.body);
 
-      if (!mounted) return;
-      setState(() {
-          allUsers = users.map((user) => Map<String, dynamic>.from(user)).toList();
-        _isLoading = false;
-        _hasError = false;
-      });
+        if (!mounted) return;
+        setState(() {
+          allUsers =
+              users.map((user) => Map<String, dynamic>.from(user)).toList();
+          _isLoading = false;
+          _hasError = false;
+        });
       } else if (response.statusCode == 401) {
         // التوكن غير صالح أو منتهي
         throw Exception('Authentication failed: Invalid or expired token');
@@ -360,7 +451,7 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
         _hasError = true;
         _isLoading = false;
       });
-      
+
       // ✅ إظهار رسالة خطأ للمستخدم
       _showErrorSnackbar(context, e.toString());
     }
@@ -372,7 +463,9 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
     // إذا لم تكن الصورة موجودة في SharedPreferences، ابحث عنها في allUsers
     if (imageData.isEmpty && data['USER_ID'] != null && allUsers.isNotEmpty) {
       final userFromList = allUsers.firstWhere(
-        (u) => (u['USER_ID']?.toString() ?? u['uid']?.toString() ?? '') == data['USER_ID'].toString(),
+        (u) =>
+            (u['USER_ID']?.toString() ?? u['uid']?.toString() ?? '') ==
+            data['USER_ID'].toString(),
         orElse: () => {},
       );
       if (userFromList.isNotEmpty && userFromList['IMAGE'] != null) {
@@ -387,12 +480,15 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
   }
 
   String _translate(BuildContext context, String key) {
-  final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    return _translations[key]?[languageProvider.currentLocale.languageCode] ?? key;
+    final languageProvider =
+        Provider.of<LanguageProvider>(context, listen: false);
+    return _translations[key]?[languageProvider.currentLocale.languageCode] ??
+        key;
   }
 
   bool _isArabic(BuildContext context) {
-  final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+    final languageProvider =
+        Provider.of<LanguageProvider>(context, listen: false);
     return languageProvider.currentLocale.languageCode == 'ar';
   }
 
@@ -414,7 +510,7 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
     await prefs.remove('userData');
     await prefs.remove('auth_token'); // ✅ مسح التوكن أيضاً
     await prefs.remove('USER_ID');
-    
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const LoginPage()),
@@ -433,7 +529,8 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
     );
   }
 
-  void showDashboardBanner(String message, {Color backgroundColor = Colors.green}) {
+  void showDashboardBanner(String message,
+      {Color backgroundColor = Colors.green}) {
     ScaffoldMessenger.of(context).clearMaterialBanners();
     ScaffoldMessenger.of(context).showMaterialBanner(
       MaterialBanner(
@@ -441,116 +538,117 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
         backgroundColor: backgroundColor,
         actions: [
           TextButton(
-            onPressed: () => ScaffoldMessenger.of(context).clearMaterialBanners(),
-            child: Text(_translate(context, 'close'), style: const TextStyle(color: Colors.white)),
+            onPressed: () =>
+                ScaffoldMessenger.of(context).clearMaterialBanners(),
+            child: Text(_translate(context, 'close'),
+                style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     // استهلاك LanguageProvider لإعادة بناء الواجهة عند تغيير اللغة
     return Consumer<LanguageProvider>(
       builder: (context, languageProvider, _) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Directionality(
-          textDirection: _isArabic(context) ? TextDirection.rtl : TextDirection.ltr,
-          child: Scaffold(
-            backgroundColor: Colors.white,
-            appBar: AppBar(
-              title: Text(_translate(context, 'app_name')),
-              backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
-              leading: IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () {
-                  setState(() {
-                    isSidebarOpen = !isSidebarOpen;
-                  });
-                },
-              ),
-              actions: [
-             
-                _buildLanguageButton(context),
-                IconButton(
-                  onPressed: _logout,
-                  icon: const Icon(Icons.logout, color: Colors.white),
-                )
-              ],
-            ),
-            body: Stack(
-              children: [
-                Positioned.fill(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _hasError
-                          ? _buildErrorWidget(context)
-                          : _buildMainContent(context),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            return Directionality(
+              textDirection:
+                  _isArabic(context) ? TextDirection.rtl : TextDirection.ltr,
+              child: Scaffold(
+                backgroundColor: Colors.white,
+                appBar: AppBar(
+                  title: Text(_translate(context, 'app_name')),
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  leading: IconButton(
+                    icon: const Icon(Icons.menu),
+                    onPressed: () {
+                      setState(() {
+                        isSidebarOpen = !isSidebarOpen;
+                      });
+                    },
+                  ),
+                  actions: [
+                    _buildLanguageButton(context),
+                    IconButton(
+                      onPressed: _logout,
+                      icon: const Icon(Icons.logout, color: Colors.white),
+                    )
+                  ],
                 ),
-                if (isSidebarOpen)
-                  Positioned.fill(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          isSidebarOpen = false;
-                        });
-                      },
-                      child: Container(
-                       color: Colors.black.withAlpha(77),
-                        alignment: _isArabic(context)
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
+                body: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _hasError
+                              ? _buildErrorWidget(context)
+                              : _buildMainContent(context),
+                    ),
+                    if (isSidebarOpen)
+                      Positioned.fill(
                         child: GestureDetector(
-                          onTap: () {},
-                          child: SizedBox(
-                            width: 260,
-                            height: double.infinity,
-                            child: Material(
-                              elevation: 8,
-                              child: Stack(
-                                children: [
-                                  AdminSidebar(
-                                    primaryColor: primaryColor,
-                                    accentColor: accentColor,
-                                    userName: _userName,
-                                    userImageUrl: _userImageUrl,
-                                    onLogout: _logout,
-                                    parentContext: context,
-                                    translate: _translate,
+                          onTap: () {
+                            setState(() {
+                              isSidebarOpen = false;
+                            });
+                          },
+                          child: Container(
+                            color: Colors.black.withAlpha(77),
+                            alignment: _isArabic(context)
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: GestureDetector(
+                              onTap: () {},
+                              child: SizedBox(
+                                width: 260,
+                                height: double.infinity,
+                                child: Material(
+                                  elevation: 8,
+                                  child: Stack(
+                                    children: [
+                                      AdminSidebar(
+                                        primaryColor: primaryColor,
+                                        accentColor: accentColor,
+                                        userName: _userName,
+                                        userImageUrl: _userImageUrl,
+                                        onLogout: _logout,
+                                        parentContext: context,
+                                        translate: _translate,
                                         allUsers: allUsers,
                                         userRole: 'admin', // إضافة هذا السطر
+                                      ),
+                                      Positioned(
+                                        top: 8,
+                                        right: _isArabic(context) ? null : 0,
+                                        left: _isArabic(context) ? 0 : null,
+                                        child: IconButton(
+                                          icon: const Icon(Icons.close),
+                                          onPressed: () {
+                                            setState(() {
+                                              isSidebarOpen = false;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  Positioned(
-                                    top: 8,
-                                    right: _isArabic(context) ? null : 0,
-                                    left: _isArabic(context) ? 0 : null,
-                                    child: IconButton(
-                                      icon: const Icon(Icons.close),
-                                      onPressed: () {
-                                        setState(() {
-                                          isSidebarOpen = false;
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
-      },
-    );
       },
     );
   }
@@ -570,56 +668,60 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Stack(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-              ),
-            ),
-            SingleChildScrollView(
+        return Container(
+          color: Colors.white,
+          child: ScrollConfiguration(
+            behavior: const _AllInputScrollBehavior(),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.only(
                 left: horizontalPadding,
                 right: horizontalPadding,
                 bottom: mediaQuery.padding.bottom + (isSmallScreen ? 10 : 20),
               ),
-              child: Column(
-                children: [
-                  _buildUserInfoCard(context, isSmallScreen, isWide, isTablet),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: features.length, // استخدام length من القائمة المعرفة
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: gridCount,
-                        crossAxisSpacing: 15,
-                        mainAxisSpacing: 15,
-                        childAspectRatio: gridChildAspectRatio,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
+                  children: [
+                    _buildUserInfoCard(
+                        context, isSmallScreen, isWide, isTablet),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: features
+                            .length, // استخدام length من القائمة المعرفة
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: gridCount,
+                          crossAxisSpacing: 15,
+                          mainAxisSpacing: 15,
+                          childAspectRatio: gridChildAspectRatio,
+                        ),
+                        itemBuilder: (context, index) {
+                          final feature = features[index];
+                          return _buildFeatureBox(
+                            context,
+                            feature['icon'] as IconData,
+                            feature['title'] as String,
+                            feature['color'] as Color,
+                            onTap: feature['onTap'] as VoidCallback,
+                          );
+                        },
                       ),
-                      itemBuilder: (context, index) {
-                        final feature = features[index];
-                        return _buildFeatureBox(
-                          context,
-                          feature['icon'] as IconData,
-                          feature['title'] as String,
-                          feature['color'] as Color,
-                          onTap: feature['onTap'] as VoidCallback,
-                        );
-                      },
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildUserInfoCard(BuildContext context, bool isSmallScreen, bool isWide, bool isTablet) {
+  Widget _buildUserInfoCard(
+      BuildContext context, bool isSmallScreen, bool isWide, bool isTablet) {
     return Container(
       margin: const EdgeInsets.all(20),
       height: isSmallScreen ? 180 : (isWide ? 240 : (isTablet ? 220 : 200)),
@@ -649,26 +751,39 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                (_userImageUrl.isNotEmpty && (_userImageUrl.startsWith('http://') || _userImageUrl.startsWith('https://')))
+                (_userImageUrl.isNotEmpty &&
+                        (_userImageUrl.startsWith('http://') ||
+                            _userImageUrl.startsWith('https://')))
                     ? CircleAvatar(
-                        radius: isSmallScreen ? 30 : (isWide ? 55 : (isTablet ? 45 : 40)),
+                        radius: isSmallScreen
+                            ? 30
+                            : (isWide ? 55 : (isTablet ? 45 : 40)),
                         backgroundColor: Colors.white.withAlpha(204),
                         child: ClipOval(
                           child: Image.network(
                             _userImageUrl,
-                            width: isSmallScreen ? 60 : (isWide ? 110 : (isTablet ? 90 : 80)),
-                            height: isSmallScreen ? 60 : (isWide ? 110 : (isTablet ? 90 : 80)),
+                            width: isSmallScreen
+                                ? 60
+                                : (isWide ? 110 : (isTablet ? 90 : 80)),
+                            height: isSmallScreen
+                                ? 60
+                                : (isWide ? 110 : (isTablet ? 90 : 80)),
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, color: Colors.red),
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.error, color: Colors.red),
                           ),
                         ),
                       )
                     : CircleAvatar(
-                        radius: isSmallScreen ? 30 : (isWide ? 55 : (isTablet ? 45 : 40)),
+                        radius: isSmallScreen
+                            ? 30
+                            : (isWide ? 55 : (isTablet ? 45 : 40)),
                         backgroundColor: Colors.white.withAlpha(204),
                         child: Icon(
                           Icons.person,
-                          size: isSmallScreen ? 30 : (isWide ? 55 : (isTablet ? 45 : 40)),
+                          size: isSmallScreen
+                              ? 30
+                              : (isWide ? 55 : (isTablet ? 45 : 40)),
                           color: accentColor,
                         ),
                       ),
@@ -678,7 +793,9 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
                   child: Text(
                     _userName,
                     style: TextStyle(
-                      fontSize: isSmallScreen ? 16 : (isWide ? 28 : (isTablet ? 22 : 20)),
+                      fontSize: isSmallScreen
+                          ? 16
+                          : (isWide ? 28 : (isTablet ? 22 : 20)),
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
@@ -691,7 +808,9 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
                 Text(
                   _translate(context, 'admin'),
                   style: TextStyle(
-                    fontSize: isSmallScreen ? 14 : (isWide ? 18 : (isTablet ? 16 : 16)),
+                    fontSize: isSmallScreen
+                        ? 14
+                        : (isWide ? 18 : (isTablet ? 16 : 16)),
                     color: Colors.white,
                   ),
                 ),

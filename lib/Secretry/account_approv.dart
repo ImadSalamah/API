@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../loginpage.dart';
 import '../Secretry/secretary_sidebar.dart';
 import '../../providers/secretary_provider.dart';
@@ -14,6 +15,7 @@ import '../../providers/language_provider.dart';
 import 'package:dcs/config/api_config.dart';
 import 'package:dcs/services/oracle_storage.dart';
 import '../utils/friendly_error.dart';
+import '../utils/name_utils.dart';
 
 class AccountApprovalPage extends StatefulWidget {
   final String? initialUserId;
@@ -49,6 +51,7 @@ class AccountApprovalPageState extends State<AccountApprovalPage> {
 
   List<Map<String, dynamic>> _pendingUsers = [];
   List<Map<String, dynamic>> _rejectedUsers = [];
+  final Map<String, String> _studentNameCache = {};
   bool _isLoading = true;
   bool _isRejectedLoading = false;
   final ImagePicker _imagePicker = ImagePicker();
@@ -120,6 +123,7 @@ class AccountApprovalPageState extends State<AccountApprovalPage> {
       'ar': 'تعذر الاتصال، يرجى المحاولة لاحقاً',
       'en': 'Unable to connect, please try again'
     },
+    'added_by': {'ar': 'أضيف بواسطة', 'en': 'Added by'},
   };
 
   @override
@@ -264,7 +268,13 @@ class AccountApprovalPageState extends State<AccountApprovalPage> {
         final usersList = <Map<String, dynamic>>[];
         for (var user in data) {
           if (user is Map<String, dynamic> && (user['STATUS'] == null || user['STATUS'] == 'pending')) {
-            usersList.add(user);
+            // Normalize studentId for later display
+            final normalized = Map<String, dynamic>.from(user);
+            final rawStudentId = user['STUDENTID'] ?? user['STUDENT_ID'] ?? user['studentId'];
+            if (rawStudentId != null) {
+              normalized['studentId'] = rawStudentId.toString().trim();
+            }
+            usersList.add(normalized);
           }
         }
         if (mounted) {
@@ -272,6 +282,7 @@ class AccountApprovalPageState extends State<AccountApprovalPage> {
             _pendingUsers = usersList;
             _isLoading = false;
           });
+          _prefetchStudentNames(usersList);
         }
       } else {
         throw Exception('Failed to load pending users');
@@ -282,6 +293,38 @@ class AccountApprovalPageState extends State<AccountApprovalPage> {
         setState(() => _isLoading = false);
         _showErrorSnack(e);
       }
+    }
+  }
+
+  Future<void> _prefetchStudentNames(List<Map<String, dynamic>> users) async {
+    final idsToFetch = <String>{};
+    for (final user in users) {
+      final id = user['studentId']?.toString().trim() ?? '';
+      if (id.isNotEmpty && !_studentNameCache.containsKey(id)) {
+        idsToFetch.add(id);
+      }
+    }
+    if (idsToFetch.isEmpty) return;
+
+    final fetched = <String, String>{};
+    for (final id in idsToFetch) {
+      try {
+        final res = await http.get(Uri.parse('${ApiConfig.baseUrl}/users/$id'));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          final fullName = extractFullName(Map<String, dynamic>.from(data));
+          if (fullName.isNotEmpty) {
+            fetched[id] = fullName;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching student name for $id: $e');
+      }
+    }
+    if (fetched.isNotEmpty && mounted) {
+      setState(() {
+        _studentNameCache.addAll(fetched);
+      });
     }
   }
 
@@ -1357,6 +1400,10 @@ class AccountApprovalPageState extends State<AccountApprovalPage> {
 
   Widget _buildUserCard(Map<String, dynamic> user) {
     final languageProvider = Provider.of<LanguageProvider>(context);
+    final studentId = (user['studentId'] ?? '').toString();
+    final addedByName = studentId.isEmpty
+        ? _translate('not_available')
+        : (_studentNameCache[studentId] ?? '${_translate('not_available')} ($studentId)');
 
     // الصور على اليسار (صورة الهوية وصورة الإقرار)
     final imagesColumn = Column(
@@ -1411,6 +1458,10 @@ class AccountApprovalPageState extends State<AccountApprovalPage> {
                   _buildUserInfoRow(
                     label: _translate('gender'),
                     value: _getGenderText(user['GENDER'], languageProvider.isEnglish),
+                  ),
+                  _buildUserInfoRow(
+                    label: _translate('added_by'),
+                    value: addedByName,
                   ),
                 ],
               ),
@@ -1539,8 +1590,26 @@ class AccountApprovalPageState extends State<AccountApprovalPage> {
   }
 
   Future<void> _loadSecretaryData() async {
-    // This should be replaced with your authentication logic or API call
-    // For now, just skip loading secretary data
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userDataJson = prefs.getString('userData');
+      if (userDataJson == null) return;
+
+      final data = json.decode(userDataJson);
+      if (data is! Map) return;
+
+      final fullName = extractFullName(Map<String, dynamic>.from(data));
+      final provider = Provider.of<SecretaryProvider>(context, listen: false);
+      provider.setSecretaryData({
+        'uid': data['USER_ID']?.toString() ?? '',
+        'fullName': fullName,
+        'image': data['IMAGE'] ?? '',
+        'email': data['EMAIL'] ?? '',
+        'phone': data['PHONE'] ?? '',
+      });
+    } catch (e) {
+      debugPrint('Error loading secretary data: $e');
+    }
   }
 
   void _showUserDetailsDialog(Map<String, dynamic> user) {

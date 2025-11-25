@@ -6,6 +6,10 @@ import '../Admin/edit_user_page.dart';
 import '../Admin/assign_patients_admin_page.dart';
 import '../Admin/booking_settings_page.dart';
 import '../dashboard/doctors_management_page.dart';
+import 'admin_prescription_page.dart';
+import 'admin_xray_request_page.dart';
+import '../Secretry/all_patients_page.dart';
+import '../Shared/waiting_list_page.dart';
 
 class AdminSidebar extends StatelessWidget {
   final Color primaryColor;
@@ -42,7 +46,11 @@ class AdminSidebar extends StatelessWidget {
       'assign_patients': {'ar': 'تعيين المرضى للطلاب', 'en': 'Assign Patients to Students'},
       'manage_doctors': {'ar': 'إدارة الأطباء', 'en': 'Manage Doctors'},
       'booking_table': {'ar': 'جدول الحجوزات', 'en': 'Booking Table'},
+      'prescription': {'ar': 'الوصفات الطبية', 'en': 'Prescriptions'},
+      'xray_request': {'ar': 'طلبات الأشعة', 'en': 'X-Ray Requests'},
       'admin': {'ar': 'مدير النظام', 'en': 'System Admin'},
+      'patient_files': {'ar': 'ملفات المرضى', 'en': 'Patient Files'},
+      'waiting_list': {'ar': 'قائمة الانتظار', 'en': 'Waiting List'},
     };
 
     final langCode = Localizations.localeOf(context).languageCode == 'en' ? 'en' : 'ar';
@@ -194,6 +202,58 @@ class AdminSidebar extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (context) => const BookingSettingsPage(),
+            ),
+          );
+        },
+      },
+      {
+        'icon': Icons.medication,
+        'title': _getTranslation(context, 'prescription'),
+        'onTap': () {
+          Navigator.pop(context);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AdminPrescriptionPage(),
+            ),
+          );
+        },
+      },
+      {
+        'icon': Icons.medical_information,
+        'title': _getTranslation(context, 'xray_request'),
+        'onTap': () {
+          Navigator.pop(context);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AdminXrayRequestPage(),
+            ),
+          );
+        },
+      },
+      {
+        'icon': Icons.folder_shared,
+        'title': _getTranslation(context, 'patient_files'),
+        'onTap': () {
+          Navigator.pop(context);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PatientFilesPage(userRole: 'admin'),
+            ),
+          );
+        },
+      },
+      {
+        'icon': Icons.pending_actions,
+        'title': _getTranslation(context, 'waiting_list'),
+        'onTap': () {
+          Navigator.pop(context);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const WaitingListPage(userRole: 'admin'),
             ),
           );
         },

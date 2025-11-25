@@ -5,7 +5,7 @@ import '../providers/language_provider.dart';
 import '../loginpage.dart' show UserRole, LoginPage;
 import 'role_guard.dart';
 import '../Shared/waiting_list_page.dart';
-import '../Shared/add_patient_page.dart';
+import '../Secretry/add_patient_page.dart';
 import '../Secretry/account_approv.dart';
 import '../Secretry/secretary_sidebar.dart';
 import 'package:flutter/foundation.dart';

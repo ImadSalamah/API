@@ -54,11 +54,11 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
             .map((e) {
           final mapped = Map<String, dynamic>.from(e);
           return {
-            'request_id': mapped['REQUEST_ID'] ?? mapped['id'],
+            'request_id': mapped['REQUEST_ID'] ?? mapped['id'] ?? mapped['requestId'],
             'patient_name': mapped['PATIENT_NAME'] ?? mapped['patientName'],
             'patient_id': mapped['PATIENT_ID'] ?? mapped['patientId'],
             'student_name': mapped['STUDENT_NAME'],
-            'status': mapped['STATUS'] ?? mapped['status'],
+            'status': mapped['STATUS'] ?? mapped['status'] ?? mapped['Status'],
             'clinic': mapped['CLINIC'],
             'timestamp': mapped['TIMESTAMP'] ?? mapped['createdAt'],
             'cbct_jaw': mapped['CBCT_JAW'] ?? mapped['jaw'],
@@ -126,6 +126,13 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
     return languageProvider.currentLocale.languageCode == 'ar';
   }
 
+  bool _isAwaitingDeanStatus(String status) {
+    final normalized = status
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z]'), ''); // remove underscores/spaces/anything non-letter
+    return normalized.startsWith('awaitingdean');
+  }
+
   @override
   Widget build(BuildContext context) {
     final isArabic = _isArabic;
@@ -184,7 +191,7 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
 
   Widget _buildRequestCard(Map<String, dynamic> request, bool isArabic) {
     final status = (request['status'] ?? 'pending').toString().toLowerCase();
-    final awaitingDean = status == 'awaiting_dean_approval';
+    final awaitingDean = _isAwaitingDeanStatus(status);
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
