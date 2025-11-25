@@ -9,7 +9,7 @@ import 'package:dcs/services/auth_http_client.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/language_provider.dart';
-import '../loginpage.dart' show UserRole, LoginPage;
+import '../loginpage.dart' show UserRole;
 import 'role_guard.dart';
 import '../Admin/add_user_page.dart';
 import '../Admin/edit_user_page.dart';
@@ -23,6 +23,7 @@ import '../Shared/waiting_list_page.dart';
 // ✅ استيراد الصفحة الجديدة للإدمن
 import '../Admin/examined_patients_page.dart';
 import '../Secretry/all_patients_page.dart';
+import '../utils/logout_manager.dart';
 import 'package:dcs/config/api_config.dart';
 
 class AdminDashboard extends StatelessWidget {
@@ -505,16 +506,7 @@ class _AdminDashboardState extends State<_AdminDashboardContent> {
   }
 
   Future<void> _logout() async {
-    // مسح بيانات المستخدم من SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('userData');
-    await prefs.remove('auth_token'); // ✅ مسح التوكن أيضاً
-    await prefs.remove('USER_ID');
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-    );
+    await logoutAndNavigateToLogin(context);
   }
 
   Widget _buildLanguageButton(BuildContext context) {

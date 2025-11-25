@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../loginpage.dart';
+import '../loginpage.dart' show UserRole;
 import 'package:provider/provider.dart';
 import '../providers/language_provider.dart';
 import 'role_guard.dart';
@@ -8,6 +8,7 @@ import '../nurse/examined_patients_page.dart';
 import '../nurse/nurse_sidebar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/name_utils.dart';
+import '../utils/logout_manager.dart';
 
 final class NurseDashboard extends StatelessWidget {
   const NurseDashboard({super.key});
@@ -90,7 +91,7 @@ class _NurseDashboardContentState extends State<_NurseDashboardContent> {
     return _translate(context, 'error_loading_data');
   }
 
-  void _signOut() async {
+  Future<void> _signOut() async {
     try {
       showDialog(
         context: context,
@@ -110,20 +111,9 @@ class _NurseDashboardContentState extends State<_NurseDashboardContent> {
       );
 
       await Future.delayed(const Duration(milliseconds: 500));
-      
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('userData');
-      await prefs.remove('token');
-      
       if (!mounted) return;
       Navigator.of(context).pop();
-      if (!mounted) return;
-      
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-        (Route<dynamic> route) => false,
-      );
+      await logoutAndNavigateToLogin(context);
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();

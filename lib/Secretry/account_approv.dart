@@ -8,7 +8,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../loginpage.dart';
 import '../Secretry/secretary_sidebar.dart';
 import '../../providers/secretary_provider.dart';
 import '../../providers/language_provider.dart';
@@ -16,6 +15,7 @@ import 'package:dcs/config/api_config.dart';
 import 'package:dcs/services/oracle_storage.dart';
 import '../utils/friendly_error.dart';
 import '../utils/name_utils.dart';
+import '../utils/logout_manager.dart';
 
 class AccountApprovalPage extends StatefulWidget {
   final String? initialUserId;
@@ -1642,12 +1642,8 @@ class AccountApprovalPageState extends State<AccountApprovalPage> {
     );
   }
 
-  void _logout() async {
-    // Remove token or session if needed
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-    );
+  Future<void> _logout() async {
+    await logoutAndNavigateToLogin(context);
   }
 
   @override

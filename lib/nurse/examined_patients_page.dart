@@ -8,6 +8,7 @@ import 'dart:convert';
 import '../utils/name_utils.dart';
 import 'dart:ui' as ui;
 import '../nurse/nurse_sidebar.dart'; // ✅ Nurse فقط
+import '../utils/logout_manager.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:dcs/config/api_config.dart';
@@ -4262,8 +4263,8 @@ class _NurseExaminedPatientsPageState extends State<NurseExaminedPatientsPage> {
       accentColor: const Color(0xFF4AB8D8),
       userName: _nurseName ?? 'Nurse',
       userImageUrl: _nurseImageUrl ?? '',
-      onLogout: () {
-        // Handle logout
+      onLogout: () async {
+        await logoutAndNavigateToLogin(context);
       },
       parentContext: context,
       userRole: 'nurse', allowedFeatures: [],

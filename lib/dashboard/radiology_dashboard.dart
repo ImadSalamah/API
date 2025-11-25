@@ -6,12 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/language_provider.dart';
-import '../loginpage.dart' show UserRole, LoginPage;
+import '../loginpage.dart' show UserRole;
 import 'role_guard.dart';
 import '../radiology/xray_request_list_page.dart';
 import '../radiology/radiology_sidebar.dart';
 import '../radiology/radiology_report_page.dart';
 import '../utils/name_utils.dart';
+import '../utils/logout_manager.dart';
 import 'package:dcs/config/api_config.dart';
 
 class RadiologyDashboard extends StatelessWidget {
@@ -262,16 +263,7 @@ class _RadiologyDashboardState extends State<_RadiologyDashboardContent> {
   }
 
   Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('userData');
-    await prefs.remove('auth_token');
-    await prefs.remove('token'); // legacy key if used elsewhere
-    // ignore: use_build_context_synchronously
-    Navigator.pushReplacement(
-      // ignore: use_build_context_synchronously
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-    );
+    await logoutAndNavigateToLogin(context);
   }
 
   void showDashboardBanner(String message, {Color backgroundColor = Colors.green}) {

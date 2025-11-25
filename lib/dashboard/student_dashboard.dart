@@ -6,12 +6,13 @@ import 'dart:convert';
 import '../providers/language_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dcs/services/auth_http_client.dart' as http;
-import '../loginpage.dart' show UserRole, LoginPage;
+import '../loginpage.dart' show UserRole;
 import 'role_guard.dart';
 import '../Student/student_add_patient_page.dart';
 import '../Student/examined_patients_page.dart';
 import '../Student/student_sidebar.dart';
 import '../utils/name_utils.dart';
+import '../utils/logout_manager.dart';
 import 'package:dcs/config/api_config.dart';
 
 class StudentDashboard extends StatelessWidget {
@@ -180,10 +181,7 @@ String _getCurrentUserId() {
   }
 
   Future<void> _logout() async {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-    );
+    await logoutAndNavigateToLogin(context);
   }
 
   Future<void> _openXrayUpload(BuildContext context) async {

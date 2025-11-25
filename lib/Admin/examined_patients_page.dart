@@ -10,6 +10,7 @@ import '../utils/name_utils.dart';
 import 'dart:ui' as ui;
 import '../admin/admin_sidebar.dart'; // ✅ Admin فقط
 import 'package:flutter_localizations/flutter_localizations.dart';
+import '../utils/logout_manager.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:dcs/config/api_config.dart';
 
@@ -4268,8 +4269,8 @@ class _AdminExaminedPatientsPageState extends State<AdminExaminedPatientsPage> {
       accentColor: const Color(0xFF4AB8D8),
       userName: _adminName ?? 'Admin',
       userImageUrl: _adminImageUrl,
-      onLogout: () {
-        // Handle logout
+      onLogout: () async {
+        await logoutAndNavigateToLogin(context);
       },
       parentContext: context,
       userRole: 'admin',

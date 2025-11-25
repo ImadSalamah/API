@@ -5,9 +5,9 @@ import 'package:dcs/services/auth_http_client.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import '../Doctor/doctor_sidebar.dart';
-import '../loginpage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/name_utils.dart';
+import '../utils/logout_manager.dart';
 import 'package:dcs/config/api_config.dart';
 
 class ClinicalProceduresForm extends StatefulWidget {
@@ -536,11 +536,8 @@ class _ClinicalProceduresFormState extends State<ClinicalProceduresForm> {
       accentColor: Colors.teal,
       userName: resolvedName,
       userImageUrl: null,
-      onLogout: () {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginPage()),
-          (route) => false,
-        );
+      onLogout: () async {
+        await logoutAndNavigateToLogin(context);
       },
       parentContext: context,
       collapsed: false,

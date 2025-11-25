@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../providers/language_provider.dart';
-import '../loginpage.dart' show UserRole, LoginPage;
+import '../loginpage.dart' show UserRole;
 import 'role_guard.dart';
 import '../Shared/waiting_list_page.dart';
 import '../Secretry/add_patient_page.dart';
@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../Secretry/all_patients_page.dart';
 import '../Admin/booking_settings_page.dart';
 import '../utils/name_utils.dart';
+import '../utils/logout_manager.dart';
 
 class SecretaryDashboard extends StatelessWidget {
   const SecretaryDashboard({super.key});
@@ -227,13 +228,7 @@ class _SecretaryDashboardState extends State<_SecretaryDashboardContent> {
   }
 
   Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('userData');
-    Navigator.pushReplacement(
-      // ignore: use_build_context_synchronously
-      context,
-      MaterialPageRoute(builder: (context) => const LoginPage()),
-    );
+    await logoutAndNavigateToLogin(context);
   }
 
   void showDashboardBanner(String message, {Color backgroundColor = Colors.green}) {

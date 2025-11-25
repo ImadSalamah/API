@@ -93,6 +93,7 @@ class AuthService {
       await prefs.remove('FULL_NAME');
       await prefs.remove('EMAIL');
       await prefs.remove('IS_DEAN');
+      await prefs.remove('token'); // remove legacy token entry if present
     // ignore: empty_catches
     } catch (e) {
     }

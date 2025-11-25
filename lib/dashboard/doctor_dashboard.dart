@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../providers/language_provider.dart';
-import '../loginpage.dart' show UserRole, LoginPage;
+import '../loginpage.dart' show UserRole;
 import 'role_guard.dart';
 import '../Shared/waiting_list_page.dart';
 import '../Doctor/examined_patients_page.dart';
@@ -14,6 +14,7 @@ import '../utils/name_utils.dart';
 import '../Doctor/doctor_xray_request_page.dart';
 import '../Doctor/clinical_procedures_form.dart';
 import '../Doctor/cbct_approvals_page.dart';
+import '../utils/logout_manager.dart';
 import 'package:dcs/services/auth_http_client.dart' as http;
 import 'package:dcs/config/api_config.dart';
 
@@ -379,13 +380,7 @@ class _SupervisorDashboardState extends State<_SupervisorDashboardContent> {
       if (!mounted) return;
 
       Navigator.of(context).pop();
-      if (!mounted) return;
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-        (Route<dynamic> route) => false,
-      );
+      await logoutAndNavigateToLogin(context);
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();
