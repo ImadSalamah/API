@@ -292,6 +292,8 @@ class _StudentExaminedPatientsPageState extends State<StudentExaminedPatientsPag
   static const Color textSecondary = Color(0xFF666666);
   static const Color borderColor = Color(0xFFEEEEEE);
   static const Color errorColor = Color(0xFFE53935);
+  static const double _xrayImagePreviewHeight = 120.0;
+  static const double _xrayCardMaxWidth = 200.0;
 
   // State variables
   List<Map<String, dynamic>> _examinedPatients = [];
@@ -1014,11 +1016,11 @@ class _StudentExaminedPatientsPageState extends State<StudentExaminedPatientsPag
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: _xrayCardMaxWidth,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
-        childAspectRatio: 0.8,
+        childAspectRatio: 0.85,
       ),
       itemCount: xrayImages.length,
       itemBuilder: (context, index) {
@@ -1045,16 +1047,17 @@ class _StudentExaminedPatientsPageState extends State<StudentExaminedPatientsPag
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Image section
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(4),
-                    topRight: Radius.circular(4),
-                  ),
-                  color: Colors.grey[100],
+            SizedBox(
+              height: _xrayImagePreviewHeight,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(4),
                 ),
-                child: _buildXrayImageWithFallback(imageUrl),
+                child: Container(
+                  color: Colors.grey[100],
+                  child: _buildXrayImageWithFallback(imageUrl),
+                ),
               ),
             ),
             

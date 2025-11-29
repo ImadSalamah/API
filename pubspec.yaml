@@ -67,7 +67,8 @@ dev_dependencies:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/bglogo.png"
+  image_path: "lib/assets/LOGO_2.png"
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
@@ -77,6 +78,7 @@ flutter:
     - assets/aauplogo.png
     - assets/logo1.png
     - lib/assets/backgrownd.png
+    - lib/assets/LOGO_2.png
     - assets/Cairo-Regular.ttf
 
   fonts:

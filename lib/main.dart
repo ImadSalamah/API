@@ -10,7 +10,7 @@ import 'providers/language_provider.dart';
 import 'providers/patient_provider.dart';
 import 'providers/secretary_provider.dart';
 
-import '../loginpage.dart';
+import 'splash_screen.dart';
 import 'dashboard/doctor_dashboard.dart';
 import 'dashboard/nurse_dashboard.dart';
 import 'dashboard/secretary_dashboard.dart';
@@ -80,7 +80,7 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const LoginPage(),
+      home: const SplashScreen(),
     );
   }
 }

@@ -48,6 +48,7 @@ class _StudentDashboardState extends State<_StudentDashboardContent> {
   final int _maxRetries = 3;
 
   bool hasNewNotification = false;
+  String? _currentUserId;
 
   final Map<String, Map<String, String>> _translations = {
     'student_dashboard': {'ar': 'لوحة الطالب', 'en': 'Student Dashboard'},
@@ -114,6 +115,7 @@ class _StudentDashboardState extends State<_StudentDashboardContent> {
         if (localStudyYear != null) {
           _studyYear = int.tryParse(localStudyYear.toString());
         }
+        _currentUserId = userId.isNotEmpty ? userId : null;
         _isLoading = false;
         _hasError = false;
       });
@@ -147,25 +149,6 @@ class _StudentDashboardState extends State<_StudentDashboardContent> {
   }
 
 
-String _getCurrentUserId() {
-  // محاولة جلب الـ user ID من الـ provider أو الـ shared preferences
-  try {
-    final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    if (languageProvider.currentUserId != null && languageProvider.currentUserId!.isNotEmpty) {
-      return languageProvider.currentUserId!;
-    }
-    
-    // بديل: جلب من البيانات المحفوظة
-    final prefs = SharedPreferences.getInstance();
-    final userDataJson = prefs.then((prefs) => prefs.getString('userData'));
-    final userData = json.decode(userDataJson as String);
-    return userData['USER_ID']?.toString() ?? '';
-    } catch (e) {
-    debugPrint('Error getting user ID: $e');
-  }
-  
-  return '';
-}
   String _translate(BuildContext context, String key) {
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
     return _translations[key]![languageProvider.currentLocale.languageCode] ?? '';
@@ -314,7 +297,7 @@ String _getCurrentUserId() {
           drawer: StudentSidebar(
             studentName: _userName,
             studentImageUrl: _userImageUrl,
-            studentId: _getCurrentUserId(),
+            studentId: _currentUserId ?? '',
             // إخفاء خاصية رفع الأشعة من قائمة الطالب حالياً
             allowedFeatures: const ['examined_patients', 'add_patient'],
           ),
@@ -517,7 +500,7 @@ String _getCurrentUserId() {
         builder: (context) => StudentExaminedPatientsPage(
           studentName: _userName,
           studentImageUrl: _userImageUrl,
-          currentUserId: _getCurrentUserId(),
+          currentUserId: _currentUserId,
           userAllowedFeatures: const ['examined_patients', 'add_patient', 'upload_xray'],
         ),
                                     ),

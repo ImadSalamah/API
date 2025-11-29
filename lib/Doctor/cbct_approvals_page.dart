@@ -56,6 +56,9 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
                 (e['XRAY_TYPE'] ?? '').toString().toLowerCase() == 'cbct')
             .map((e) {
           final mapped = Map<String, dynamic>.from(e);
+          final requiresDeanApproval = _parseBool(
+              mapped['REQUIRES_DEAN_APPROVAL'] ??
+                  mapped['requiresDeanApproval']);
           return {
             'request_id':
                 mapped['REQUEST_ID'] ?? mapped['id'] ?? mapped['requestId'],
@@ -67,6 +70,7 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
             'timestamp': mapped['TIMESTAMP'] ?? mapped['createdAt'],
             'cbct_jaw': mapped['CBCT_JAW'] ?? mapped['jaw'],
             'doctor_name': mapped['DOCTOR_NAME'],
+            'requiresDeanApproval': requiresDeanApproval,
           };
         }).toList();
 
@@ -159,6 +163,23 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
     return containsDean && containsWaitingHint;
   }
 
+  bool _parseBool(dynamic value) {
+    if (value is bool) return value;
+    if (value == null) return false;
+    final normalized = value.toString().trim().toLowerCase();
+    return normalized == '1' ||
+        normalized == 'true' ||
+        normalized == 'yes' ||
+        normalized == 'awaiting_dean_approval';
+  }
+
+  bool _needsDeanApproval(Map<String, dynamic> request, String status) {
+    final flag =
+        request['requiresDeanApproval'] ?? request['requires_dean_approval'];
+    if (_parseBool(flag)) return true;
+    return _isAwaitingDeanStatus(status);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isArabic = _isArabic;
@@ -224,7 +245,7 @@ class _CbctApprovalsPageState extends State<CbctApprovalsPage> {
 
   Widget _buildRequestCard(Map<String, dynamic> request, bool isArabic) {
     final status = (request['status'] ?? 'pending').toString().toLowerCase();
-    final awaitingDean = _isAwaitingDeanStatus(status);
+    final awaitingDean = _needsDeanApproval(request, status);
     final requestId = request['request_id']?.toString();
     final isProcessing =
         requestId != null && _approvingRequestIds.contains(requestId);

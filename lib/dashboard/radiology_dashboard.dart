@@ -89,7 +89,7 @@ class _RadiologyDashboardState extends State<_RadiologyDashboardContent> {
     // جلب بيانات قائمة الانتظار للأشعة
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
+      final token = prefs.getString('auth_token');
       
       if (token != null && token.isNotEmpty) {
         final response = await http.get(
